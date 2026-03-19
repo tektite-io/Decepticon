@@ -41,7 +41,7 @@ class TestLLMModelMapping:
     def test_get_assignment_valid(self):
         mapping = LLMModelMapping()
         assignment = mapping.get_assignment("recon")
-        assert assignment.primary == "gemini/gemini-2.5-flash"
+        assert assignment.primary == "anthropic/claude-haiku-4-5"
 
     def test_get_assignment_invalid(self):
         mapping = LLMModelMapping()
@@ -62,10 +62,10 @@ class TestLLMModelMapping:
     def test_tactical_agents_cross_provider_fallback(self):
         """Tactical agents fall back across providers for resilience."""
         mapping = LLMModelMapping()
-        # Recon: Gemini primary → Anthropic fallback
+        # Recon: Anthropic (Haiku) primary → Gemini fallback
         recon = mapping.get_assignment("recon")
-        assert "gemini" in recon.primary
-        assert "anthropic" in recon.fallback
+        assert "anthropic" in recon.primary
+        assert "gemini" in recon.fallback
         # PostExploit: Anthropic primary → OpenAI fallback
         post = mapping.get_assignment("postexploit")
         assert "anthropic" in post.primary

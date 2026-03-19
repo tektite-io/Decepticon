@@ -6,7 +6,7 @@ middleware stack precisely.
 Middleware stack (selected for recon):
   1. SkillsMiddleware — progressive disclosure of SKILL.md knowledge
   2. FilesystemMiddleware — ls/read/write/edit/glob/grep/execute tools
-  3. ModelFallbackMiddleware — sonnet → gpt-4o fallback on primary failure
+  3. ModelFallbackMiddleware — haiku 4.5 → gemini 2.5 flash fallback on primary failure
   4. SummarizationMiddleware — auto-compact when context budget exceeded
   5. AnthropicPromptCachingMiddleware — cache system prompt for Anthropic
   6. PatchToolCallsMiddleware — repair dangling tool calls
@@ -53,7 +53,7 @@ def create_recon_agent():
       - CompositeBackend: /skills/* → host FS (read-only), default → Docker sandbox
       - /workspace/.decepticon/ → host FS (always <project_root>/.decepticon/)
       - InMemoryStore: cross-thread memory for persisting findings across sessions
-      - ModelFallbackMiddleware: sonnet primary → gpt-4o fallback on failure
+      - ModelFallbackMiddleware: haiku 4.5 primary → gemini 2.5 flash fallback on failure
       - No TodoListMiddleware: opplan.json handles task tracking
       - No SubAgentMiddleware: Decepticon orchestrator handles agent delegation
     """

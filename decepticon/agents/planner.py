@@ -10,7 +10,7 @@ middleware stack precisely.
 Middleware stack (selected for planner):
   1. SkillsMiddleware — progressive disclosure of planning SKILL.md
   2. FilesystemMiddleware — ls/read/write/edit/glob/grep tools
-  3. ModelFallbackMiddleware — opus → sonnet fallback on primary failure
+  3. ModelFallbackMiddleware — opus 4.6 → gpt-5.4 fallback on primary failure
   4. SummarizationMiddleware — auto-compact when context budget exceeded
   5. AnthropicPromptCachingMiddleware — cache system prompt for Anthropic
   6. PatchToolCallsMiddleware — repair dangling tool calls
@@ -54,7 +54,7 @@ def create_planner_agent():
       - No TodoListMiddleware: opplan objectives handle task tracking
       - No SubAgentMiddleware: planner is standalone
       - No bash tool: planner is document-generation only
-      - ModelFallbackMiddleware: opus primary → sonnet fallback on failure
+      - ModelFallbackMiddleware: opus 4.6 primary → gpt-5.4 fallback on failure
     """
     config = load_config()
 

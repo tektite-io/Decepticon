@@ -17,10 +17,10 @@ Ensemble strategy:
                    tool-heavy sequential execution; Sonnet balances precision + speed.
                    Fallback: GPT-4.1 (strong tool use, 1M context, cost-efficient).
 
-  - Recon:         Gemini 2.5 Flash — fastest tool calling at lowest cost for
-                   high-volume scanning (nmap, nuclei, subfinder). 1M context handles
-                   large scan outputs. Hybrid reasoning for scan coordination.
-                   Fallback: Claude Sonnet 4.6 (reliable tool use across providers).
+  - Recon:         Claude Haiku 4.5 — best cost-efficiency for high-volume scanning
+                   (nmap, nuclei, subfinder) at $1/$5 per MTok. Anthropic-first for
+                   Cybench-proven cybersecurity capability and prompt caching synergy.
+                   Fallback: Gemini 2.5 Flash (cross-provider, fastest tool calling).
 
   - PostExploit:   Claude Sonnet 4.6 — iterative lateral movement loop needs strong
                    reasoning + tool calling. Runs many iterations so cost matters.
@@ -114,12 +114,14 @@ class LLMModelMapping(BaseModel):
 
     recon: ModelAssignment = Field(
         default_factory=lambda: ModelAssignment(
-            # Gemini 2.5 Flash: fastest tool calling at lowest cost ($0.30/M input).
-            # 1M context for large scan outputs. Hybrid reasoning for coordinating
-            # parallel scans (nmap background + curl foreground).
-            primary="gemini/gemini-2.5-flash",
-            # Sonnet 4.6: reliable tool use as cross-provider fallback.
-            fallback="anthropic/claude-sonnet-4-6",
+            # Haiku 4.5: best cost-efficiency for high-volume scanning ($1/$5 per MTok).
+            # Matches Sonnet 4 performance on agent/tool-use tasks. 200K context
+            # sufficient with output offloading. Anthropic-first for Cybench-proven
+            # cybersecurity capability and prompt caching synergy.
+            primary="anthropic/claude-haiku-4-5",
+            # Gemini 2.5 Flash: cross-provider fallback, fastest tool calling,
+            # 1M context for large scan outputs ($0.30/M input).
+            fallback="gemini/gemini-2.5-flash",
             temperature=0.3,
         )
     )

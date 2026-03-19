@@ -9,7 +9,7 @@ Middleware stack (selected for orchestration):
   2. FilesystemMiddleware — file ops for reading/updating engagement docs
   3. SubAgentMiddleware — task() tool for delegating to sub-agents
   4. TodoListMiddleware — write_todos() for objective tracking
-  5. ModelFallbackMiddleware — opus → sonnet fallback on primary failure
+  5. ModelFallbackMiddleware — opus 4.6 → gpt-5.4 fallback on primary failure
   6. SummarizationMiddleware — auto-compact for long orchestration sessions
   7. AnthropicPromptCachingMiddleware — cache system prompt for Anthropic
   8. PatchToolCallsMiddleware — repair dangling tool calls
@@ -57,7 +57,7 @@ def create_decepticon_agent():
       - Explicit middleware stack instead of create_deep_agent() defaults
       - SubAgentMiddleware: task() tool for delegating to specialist sub-agents
       - TodoListMiddleware: write_todos() for objective tracking during orchestration
-      - ModelFallbackMiddleware: opus primary → sonnet fallback on failure
+      - ModelFallbackMiddleware: opus 4.6 primary → gpt-5.4 fallback on failure
       - CompositeBackend: /skills/* → host FS (read-only), default → Docker sandbox
 
     Returns a compiled LangGraph agent ready for invocation.
