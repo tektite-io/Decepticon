@@ -2,7 +2,7 @@
   <img src="assets/logo_banner.png" alt="Decepticon" width="600">
 </div>
 
-<p align="center">AI-powered autonomous red team framework.</p>
+<p align="center">Vibe Hacking Agent</p>
 
 <div align="center">
 
