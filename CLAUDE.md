@@ -9,8 +9,7 @@ Decepticon 2.0 is an AI-powered autonomous red team testing framework (Python 3.
 ## Commands
 
 ```bash
-uv venv && source .venv/bin/activate  # Create/activate virtual environment
-uv pip install -e ".[dev]"            # Install with dev dependencies
+uv sync --dev                          # Install with dev dependencies
 pytest                                 # Run tests (asyncio auto mode)
 pytest tests/unit/core/test_config.py -k test_name  # Single test
 basedpyright                           # Type checking (NOT mypy)

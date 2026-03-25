@@ -121,11 +121,12 @@ Each agent spawns with a **clean context window** per objective — no accumulat
 | `decepticon` | Start all services and open the interactive CLI |
 | `decepticon demo` | Run guided demo against Metasploitable 2 |
 | `decepticon stop` | Stop all services |
-| `decepticon update` | Pull latest images and sync configuration |
+| `decepticon update [-f]` | Pull latest images and sync configuration (`--force` to re-pull same version) |
 | `decepticon status` | Show service status |
 | `decepticon logs [service]` | Follow service logs (default: langgraph) |
 | `decepticon config` | Edit API keys and settings |
 | `decepticon victims` | Start vulnerable test targets (DVWA, Metasploitable) |
+| `decepticon remove` | Uninstall Decepticon completely |
 | `decepticon --version` | Show installed version |
 
 ## Contributing
@@ -139,8 +140,7 @@ git clone https://github.com/PurpleAILAB/Decepticon.git
 cd Decepticon
 
 # Python agents
-uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv sync --dev
 
 # CLI client
 cd clients/cli && npm install && cd ../..
