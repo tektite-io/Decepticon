@@ -1,22 +1,26 @@
-"""PostExploit Agent — post-exploitation operations.
+"""Soundwave Agent — engagement document writer.
 
-Handles credential access, privilege escalation, lateral movement, and C2
-management. Operates from initial foothold until all engagement objectives are met.
+Generates RoE, CONOPS, and Deconfliction Plan documents that frame the
+red team engagement. Does NOT generate OPPLAN — the orchestrator owns
+OPPLAN directly via OPPLANMiddleware (Claude Code V2 Task pattern).
+
+Named after the Decepticon intelligence officer who intercepts, processes,
+and organizes strategic information for Megatron's operations.
 
 Uses create_agent() directly (not create_deep_agent()) to control the
 middleware stack precisely.
 
-Middleware stack (selected for post-exploit):
-  1. SkillsMiddleware — progressive disclosure of SKILL.md knowledge
-  2. FilesystemMiddleware — ls/read/write/edit/glob/grep/execute tools
-  3. ModelFallbackMiddleware — sonnet 4.6 → gpt-4.1 fallback on primary failure
+Middleware stack (selected for document writer):
+  1. SkillsMiddleware — progressive disclosure of planning SKILL.md
+  2. FilesystemMiddleware — ls/read/write/edit/glob/grep tools
+  3. ModelFallbackMiddleware — haiku 4.5 → gemini 2.5 flash fallback on primary failure
   4. SummarizationMiddleware — auto-compact when context budget exceeded
   5. AnthropicPromptCachingMiddleware — cache system prompt for Anthropic
   6. PatchToolCallsMiddleware — repair dangling tool calls
 
 Backend routing (CompositeBackend):
-  /skills/* → FilesystemBackend (host FS, read-only SKILL.md access)
-  default   → DockerSandbox    (all file ops + bash execution in container)
+  /skills/* → FilesystemBackend (host FS, read-only SKILL.md + references access)
+  default   → DockerSandbox    (shared filesystem across agents)
 """
 
 from pathlib import Path
@@ -33,38 +37,33 @@ from decepticon.agents.prompts import load_prompt
 from decepticon.backends import DockerSandbox
 from decepticon.core.config import load_config
 from decepticon.llm import LLMFactory
-from decepticon.middleware import SafeCommandMiddleware
 from decepticon.middleware.skills import DecepticonSkillsMiddleware
-from decepticon.tools.bash import bash
-from decepticon.tools.bash.bash import set_sandbox
 
 # Resolve paths relative to repo root
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
-def create_postexploit_agent():
-    """Initialize the PostExploit Agent using langchain create_agent() directly.
+def create_soundwave_agent():
+    """Initialize the Soundwave Agent using langchain create_agent() directly.
 
     Context engineering decisions:
-      - CompositeBackend: /skills/* → host FS (read-only), default → Docker sandbox
-      - Bash tool for running post-exploitation tools (Mimikatz, Impacket, Evil-WinRM, etc.)
-      - ModelFallbackMiddleware: sonnet 4.6 primary → gpt-4.1 fallback on failure
-      - No TodoListMiddleware: opplan.json handles task tracking
-      - No SubAgentMiddleware: Decepticon orchestrator handles agent delegation
+      - No OPPLANMiddleware: orchestrator owns OPPLAN directly
+      - No SubAgentMiddleware: soundwave is standalone
+      - No bash tool: soundwave is document-generation only
+      - ModelFallbackMiddleware: haiku 4.5 primary → gemini 2.5 flash fallback on failure
     """
     config = load_config()
 
     factory = LLMFactory()
-    llm = factory.get_model("postexploit")
-    fallback_models = factory.get_fallback_models("postexploit")
+    llm = factory.get_model("soundwave")
+    fallback_models = factory.get_fallback_models("soundwave")
 
-    # Build DockerSandbox and inject into bash tool
+    # DockerSandbox as shared filesystem — other agents read soundwave output here
     sandbox = DockerSandbox(
         container_name=config.docker.sandbox_container_name,
     )
-    set_sandbox(sandbox)
 
-    system_prompt = load_prompt("postexploit", shared=["bash"])
+    system_prompt = load_prompt("soundwave")
 
     # Route /skills/ to host filesystem; everything else goes into the container
     backend = CompositeBackend(
@@ -74,8 +73,7 @@ def create_postexploit_agent():
 
     # Assemble middleware stack
     middleware = [
-        SafeCommandMiddleware(),
-        DecepticonSkillsMiddleware(backend=backend, sources=["/skills/post-exploit/", "/skills/shared/"]),
+        DecepticonSkillsMiddleware(backend=backend, sources=["/skills/planning/"]),
         FilesystemMiddleware(backend=backend),
     ]
     if fallback_models:
@@ -91,13 +89,13 @@ def create_postexploit_agent():
     agent = create_agent(
         llm,
         system_prompt=system_prompt,
-        tools=[bash],
+        tools=[],
         middleware=middleware,
-        name="postexploit",
+        name="soundwave",
     ).with_config({"recursion_limit": 200})
 
     return agent
 
 
 # Module-level graph for LangGraph Platform (langgraph serve)
-graph = create_postexploit_agent()
+graph = create_soundwave_agent()

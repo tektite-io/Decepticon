@@ -25,7 +25,6 @@ from pathlib import Path
 from deepagents.backends import CompositeBackend, FilesystemBackend
 from deepagents.middleware.filesystem import FilesystemMiddleware
 from deepagents.middleware.patch_tool_calls import PatchToolCallsMiddleware
-from deepagents.middleware.skills import SkillsMiddleware
 from deepagents.middleware.summarization import create_summarization_middleware
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelFallbackMiddleware
@@ -35,6 +34,7 @@ from decepticon.agents.prompts import load_prompt
 from decepticon.backends import DockerSandbox
 from decepticon.core.config import load_config
 from decepticon.llm import LLMFactory
+from decepticon.middleware.skills import DecepticonSkillsMiddleware
 
 # Resolve paths relative to repo root
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -60,7 +60,7 @@ def create_planner_agent():
         container_name=config.docker.sandbox_container_name,
     )
 
-    system_prompt = load_prompt("planning", shared=["skills"])
+    system_prompt = load_prompt("planning")
 
     # Route /skills/ to host filesystem; everything else goes into the container
     backend = CompositeBackend(
@@ -70,7 +70,7 @@ def create_planner_agent():
 
     # Assemble middleware stack
     middleware = [
-        SkillsMiddleware(backend=backend, sources=["/skills/planning/"]),
+        DecepticonSkillsMiddleware(backend=backend, sources=["/skills/planning/"]),
         FilesystemMiddleware(backend=backend),
     ]
     if fallback_models:
@@ -89,7 +89,7 @@ def create_planner_agent():
         tools=[],
         middleware=middleware,
         name="planner",
-    ).with_config({"recursion_limit": 100})
+    ).with_config({"recursion_limit": 200})
 
     return agent
 
