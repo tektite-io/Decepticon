@@ -22,8 +22,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 1,
   "status": "pending",
-  "mitre": "T1596.001",
-  "risk_level": "low",
+  "mitre": ["T1596.001"],
+  "opsec": "standard",
   "opsec_notes": "Passive only — no packets to target. Use 8.8.8.8 and 1.1.1.1 as resolvers."
 }
 ```
@@ -45,8 +45,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 2,
   "status": "pending",
-  "mitre": "T1596.001",
-  "risk_level": "low",
+  "mitre": ["T1596.001"],
+  "opsec": "standard",
   "opsec_notes": "DNS queries to public resolvers are passive. Zone transfer attempts require active authorization."
 }
 ```
@@ -68,8 +68,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 3,
   "status": "pending",
-  "mitre": "T1596.002",
-  "risk_level": "low",
+  "mitre": ["T1596.002"],
+  "opsec": "standard",
   "opsec_notes": "WHOIS is fully passive — public registry data."
 }
 ```
@@ -91,8 +91,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 4,
   "status": "pending",
-  "mitre": "T1592.002",
-  "risk_level": "medium",
+  "mitre": ["T1592.002"],
+  "opsec": "standard",
   "opsec_notes": "httpx makes HTTP requests to targets — this is active recon. Rate limit appropriately."
 }
 ```
@@ -115,8 +115,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 5,
   "status": "pending",
-  "mitre": "T1593.002",
-  "risk_level": "low",
+  "mitre": ["T1593.002"],
+  "opsec": "standard",
   "opsec_notes": "Search engine and public repo queries — fully passive."
 }
 ```
@@ -140,8 +140,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 6,
   "status": "pending",
-  "mitre": "T1595.001",
-  "risk_level": "medium",
+  "mitre": ["T1595.001"],
+  "opsec": "standard",
   "opsec_notes": "Active scanning — generates network traffic visible to IDS/IPS. Use -T2 for high-security targets."
 }
 ```
@@ -163,8 +163,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 7,
   "status": "pending",
-  "mitre": "T1592.002",
-  "risk_level": "medium",
+  "mitre": ["T1592.002"],
+  "opsec": "standard",
   "opsec_notes": "Version detection sends service-specific probes — more noisy than SYN scan."
 }
 ```
@@ -186,8 +186,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 8,
   "status": "pending",
-  "mitre": "T1595.003",
-  "risk_level": "medium",
+  "mitre": ["T1595.003"],
+  "opsec": "standard",
   "opsec_notes": "Directory fuzzing generates many HTTP requests — highly visible to WAFs. Rate limit aggressively."
 }
 ```
@@ -209,8 +209,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 9,
   "status": "pending",
-  "mitre": "T1595.002",
-  "risk_level": "medium",
+  "mitre": ["T1595.002"],
+  "opsec": "standard",
   "opsec_notes": "Nuclei sends detection payloads — IDS/WAF may flag template signatures."
 }
 ```
@@ -233,8 +233,8 @@ Copy and customize these templates for common recon objectives. Replace `<TARGET
   ],
   "priority": 10,
   "status": "pending",
-  "mitre": "T1596",
-  "risk_level": "low",
+  "mitre": ["T1596"],
+  "opsec": "standard",
   "opsec_notes": "Report generation — no target interaction."
 }
 ```

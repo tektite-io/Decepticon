@@ -1,8 +1,9 @@
 ---
 name: orchestration
-description: "Decepticon orchestrator delegation patterns, state management, adaptive re-planning, and context handoff protocols. Use when coordinating sub-agents, managing engagement state, handling blocked objectives, or deciding what to delegate next. Triggers on: 'delegate', 'orchestrate', 'next objective', 'blocked', 're-plan', 'hand off', 'engagement state', 'status update', 'parallel execution'."
+description: "Decepticon orchestrator patterns — delegation, state management, adaptive re-planning, context handoff protocols."
 metadata:
   subdomain: orchestration
+  when_to_use: "delegate, orchestrate, next objective, blocked, re-plan, hand off, engagement state, status update, parallel execution"
   tags: orchestration, delegation, state-management, re-planning, context-handoff
   mitre_attack:
 ---

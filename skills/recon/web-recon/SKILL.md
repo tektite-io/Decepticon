@@ -1,9 +1,10 @@
 ---
 name: web-recon
-description: "Use when enumerating web applications: directory/file fuzzing (ffuf/gobuster), virtual host discovery, API endpoint enumeration, parameter discovery, JavaScript analysis, CMS-specific scanning (wpscan/droopescan), WAF detection/fingerprinting, and web technology stack mapping. Covers OWASP methodology. Triggers on: 'web recon', 'directory fuzzing', 'ffuf', 'gobuster', 'API enumeration', 'vhost discovery', 'JavaScript analysis', 'CMS scan', 'wpscan', 'WAF detection', 'parameter fuzzing', 'GraphQL'."
+description: "Web application enumeration — directory/file fuzzing, virtual host discovery, API endpoint enumeration, CMS scanning, WAF detection, JavaScript analysis."
 allowed-tools: Bash Read Write
 metadata:
   subdomain: reconnaissance
+  when_to_use: "web recon, directory fuzzing, ffuf, gobuster, API enumeration, vhost discovery, JavaScript analysis, CMS scan, wpscan, WAF detection, parameter fuzzing, GraphQL"
   tags: ffuf, gobuster, api-enum, vhost, cms-scan, waf-detection, javascript-analysis
   mitre_attack: T1595.003, T1592.004
 ---

@@ -1,8 +1,9 @@
 ---
 name: kill-chain-analysis
-description: "Kill chain analysis and attack path decision-making for the Decepticon orchestrator. Covers how to analyze findings, select attack vectors, prioritize targets, and decide on phase transitions. Triggers on: 'analyze findings', 'select attack vector', 'prioritize targets', 'which technique', 'attack path', 'next attack', 'choose approach', 'alternative vector', 'blocked what next'."
+description: "Kill chain analysis and attack path decision-making — findings analysis, attack vector selection, target prioritization, phase transitions."
 metadata:
   subdomain: orchestration
+  when_to_use: "analyze findings, select attack vector, prioritize targets, which technique, attack path, next attack, choose approach, alternative vector, blocked what next"
   tags: kill-chain, decision-making, attack-path, target-prioritization, technique-selection
   mitre_attack: TA0043, TA0001, TA0002, TA0003, TA0004, TA0005, TA0006, TA0007, TA0008
 ---

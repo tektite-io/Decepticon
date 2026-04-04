@@ -1,9 +1,10 @@
 ---
 name: opsec
-description: "Use when managing operational security during engagements: traffic shaping, scan rate limiting, source IP management, user-agent rotation, log awareness, tool signature avoidance, engagement scoping rules, evidence handling, and anti-detection patterns. Applies across all recon phases. Triggers on: 'OPSEC check', 'rate limit', 'stealth', 'detection avoidance', 'scan timing', 'user-agent', 'scope check', 'evidence handling', 'clean up', 'anti-detection'."
+description: "Operational security management — traffic shaping, scan rate limiting, source IP management, tool signature avoidance, evidence handling, anti-detection patterns."
 allowed-tools: Bash Read
 metadata:
   subdomain: opsec
+  when_to_use: "OPSEC check, rate limit, stealth, detection avoidance, scan timing, user-agent, scope check, evidence handling, clean up, anti-detection"
   tags: opsec, stealth, rate-limit, user-agent, scope-check, evidence-handling, anti-detection
   mitre_attack: T1562, T1070, T1036
 ---

@@ -1,8 +1,9 @@
 ---
 name: engagement-lifecycle
-description: "Full red team engagement lifecycle management from planning through reporting. Covers engagement initiation, phase transitions, go/no-go gates, deconfliction, emergency procedures, and engagement completion. Triggers on: 'start engagement', 'new engagement', 'engagement status', 'phase transition', 'go/no-go', 'deconfliction', 'emergency stop', 'engagement complete', 'wrap up'."
+description: "Red team engagement lifecycle management — initiation, phase transitions, go/no-go gates, deconfliction, emergency procedures, completion."
 metadata:
   subdomain: orchestration
+  when_to_use: "start engagement, new engagement, engagement status, phase transition, go/no-go, deconfliction, emergency stop, engagement complete, wrap up"
   tags: engagement, lifecycle, planning, phase-transition, deconfliction, emergency, completion
   mitre_attack:
 ---

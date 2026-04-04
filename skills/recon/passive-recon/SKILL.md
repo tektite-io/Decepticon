@@ -1,9 +1,10 @@
 ---
 name: passive-recon
-description: "Use when gathering intelligence WITHOUT touching the target: WHOIS lookups, DNS record queries (dig), subdomain enumeration (subfinder/amass), Certificate Transparency (crt.sh), HTTP header fingerprinting, technology fingerprinting (httpx/wappalyzer), and ASN/BGP mapping. Includes command templates, analysis patterns, and modern toolchain. Triggers on: 'passive recon', 'WHOIS', 'DNS lookup', 'subdomain', 'subfinder', 'amass', 'crt.sh', 'certificate transparency', 'ASN', 'httpx', 'tech fingerprint'."
+description: "Passive intelligence gathering without touching the target — DNS, WHOIS, subdomain enumeration, Certificate Transparency, technology fingerprinting, ASN mapping."
 allowed-tools: Bash Read Write
 metadata:
   subdomain: reconnaissance
+  when_to_use: "passive recon, WHOIS, DNS lookup, subdomain, subfinder, amass, crt.sh, certificate transparency, ASN, httpx, tech fingerprint"
   tags: passive, dns, subdomain-enum, whois, ct-logs, httpx, asn
   mitre_attack: T1590, T1591, T1592, T1593, T1596
 ---

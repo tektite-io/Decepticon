@@ -1,8 +1,9 @@
 ---
 name: workflow
-description: "Top-level orchestration skill that defines execution order and dependencies across all Decepticon skills. Use when starting a new engagement, resuming an engagement, or when unsure which skill to invoke next. Triggers on: 'start engagement', 'what's next', 'run workflow', 'engagement status', 'which skill', 'next step'."
+description: "Top-level orchestration skill — execution order and dependencies across all Decepticon skills."
 metadata:
   subdomain: orchestration
+  when_to_use: "start engagement, what's next, run workflow, engagement status, which skill, next step"
   tags: workflow, orchestrator, dependency-graph, engagement-state
   mitre_attack: []
 ---

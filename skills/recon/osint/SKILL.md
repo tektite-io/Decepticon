@@ -1,9 +1,10 @@
 ---
 name: osint
-description: "Use when gathering open-source intelligence on targets: email harvesting (theHarvester), social media profiling, breach data checking, employee enumeration (LinkedIn), GitHub/GitLab secret scanning, domain reputation, threat intelligence feeds, and organizational mapping. OSINT is passive — no direct target interaction. Triggers on: 'OSINT', 'email harvest', 'employee enumeration', 'breach check', 'GitHub secrets', 'social media recon', 'Google dork', 'organizational mapping', 'theHarvester'."
+description: "Open-source intelligence gathering — email harvesting, social media profiling, breach data checking, employee enumeration, GitHub secret scanning, organizational mapping."
 allowed-tools: Bash Read Write
 metadata:
   subdomain: reconnaissance
+  when_to_use: "OSINT, email harvest, employee enumeration, breach check, GitHub secrets, social media recon, Google dork, organizational mapping, theHarvester"
   tags: osint, email-harvest, employee-enum, github-secrets, breach-data, google-dork
   mitre_attack: T1589, T1593, T1597
 ---

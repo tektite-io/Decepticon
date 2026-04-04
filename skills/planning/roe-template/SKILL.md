@@ -1,9 +1,10 @@
 ---
 name: roe-template
-description: "Use when creating Rules of Engagement documents: scope definition (in-scope/out-of-scope targets), prohibited/permitted actions, testing windows, escalation contacts, incident procedures, and legal authorization references. Generates roe.json. Triggers on: 'create RoE', 'define scope', 'engagement boundaries', 'start new engagement'."
+description: "Rules of Engagement document creation — scope definition, prohibited/permitted actions, testing windows, escalation contacts, incident procedures."
 allowed-tools: Read Write Edit
 metadata:
   subdomain: planning
+  when_to_use: "create RoE, define scope, engagement boundaries, start new engagement"
   tags: roe, scope, engagement, authorization, legal
   mitre_attack:
 ---

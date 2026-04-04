@@ -1,8 +1,9 @@
 ---
 name: engagement-startup
-description: "Mandatory first-turn startup procedure. Checks for existing engagements, asks operator to resume or start new, and initializes workspace. Triggers on: agent startup, first message, session start. MUST be read before any other action."
+description: "Mandatory first-turn startup procedure — checks for existing engagements, resume/new selection, workspace initialization."
 metadata:
   subdomain: orchestration
+  when_to_use: "agent startup, first message, session start"
   tags: startup, engagement-selection, workspace-init, resume
   mitre_attack: []
 ---

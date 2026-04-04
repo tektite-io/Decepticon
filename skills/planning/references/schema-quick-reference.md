@@ -26,6 +26,8 @@ RoE
 │   └── EscalationContact { name: str, role: str, channel: str, available: str }
 ├── incident_procedure: str (required, non-empty)
 ├── authorization_reference: str (required, non-empty)
+├── data_handling: str (how discovered PII/credentials must be handled)
+├── cleanup_required: bool (default true — RT must remove tools/artifacts)
 ├── version: str (default "1.0")
 └── last_updated: str (ISO datetime, auto-generated)
 ```
@@ -52,7 +54,6 @@ CONOPS
 │       └── tools: list[str]
 ├── methodology: str (default "PTES + MITRE ATT&CK framework")
 ├── communication_plan: str (frequency + channel)
-├── deconfliction_method: str
 ├── phases_timeline: dict[str, str] (phase → date range, absolute dates only)
 └── success_criteria: list[str] (at least 2 required)
 ```
@@ -77,26 +78,47 @@ DeconflictionPlan
 ```
 OPPLAN
 ├── engagement_name: str (required)
-├── branch_name: str (required, convention: "engage/<client>-<type>-<date>")
 ├── threat_profile: str (required, one-sentence threat actor summary)
-├── kill_chain: list[str] (phase ordering)
-│   └── Valid phases: "recon" | "weaponize" | "deliver" | "exploit" | "install" | "c2" | "exfiltrate"
 └── objectives: list[Objective]
     └── Objective
-        ├── id: str (required, convention: "OBJ-{PHASE_PREFIX}-{NUMBER}")
+        ├── id: str (required, convention: "OBJ-{NUMBER}")
         ├── phase: ObjectivePhase (required)
+        │   └── "recon" | "initial-access" | "post-exploit" | "c2" | "exfiltration"
         ├── title: str (required)
         ├── description: str (required)
         ├── acceptance_criteria: list[str] (required, must include scope/OPSEC/output checks)
         ├── priority: int (required, sequential, respects kill chain)
         ├── status: ObjectiveStatus (default "pending")
-        │   └── "pending" | "in-progress" | "passed" | "blocked" | "out-of-scope"
-        ├── mitre: str (MITRE ATT&CK technique ID)
-        ├── risk_level: RiskLevel (default "low")
-        │   └── "low" | "medium" | "high" | "critical"
-        ├── opsec_notes: str
-        └── notes: str
+        │   └── "pending" | "in-progress" | "completed" | "blocked"
+        ├── mitre: list[str] (MITRE ATT&CK technique IDs)
+        ├── opsec: OpsecLevel (default "standard")
+        │   └── "loud" | "standard" | "careful" | "quiet" | "silent"
+        ├── opsec_notes: str (specific OPSEC constraints)
+        ├── c2_tier: C2Tier (default "interactive")
+        │   └── "interactive" | "short-haul" | "long-haul"
+        ├── concessions: list[str] (pre-authorized assists if blocked)
+        ├── blocked_by: list[str] (objective IDs that must complete first)
+        ├── owner: str (sub-agent executing this objective)
+        └── notes: str (runtime observations, evidence)
 ```
+
+### OPSEC Levels
+
+| Level | Description | C2 Tier | Example Constraints |
+|-------|-------------|---------|---------------------|
+| loud | No evasion; testing detection | interactive | Default tool flags OK |
+| standard | Basic OPSEC; modify defaults | interactive | Custom user-agents, varied timing |
+| careful | Active evasion | short-haul | LOLBins preferred, no disk drops |
+| quiet | Minimal footprint | long-haul | Living-off-the-land only, encrypted C2 |
+| silent | Zero detection tolerance | long-haul | Custom tooling, domain fronting |
+
+### C2 Tiers
+
+| Tier | Callback Interval | Use Case |
+|------|-------------------|----------|
+| interactive | Seconds | Direct operator control, active exploitation |
+| short-haul | Minutes-hours | Reliable access, periodic check-ins |
+| long-haul | Hours-days | Persistent fallback, very low profile |
 
 ## EngagementBundle
 
@@ -121,11 +143,3 @@ EngagementBundle
   ├── post-exploit/
   └── findings.md
 ```
-
-## OPPLAN Helper Methods
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `next_objective()` | `Objective \| None` | Highest-priority pending/in-progress objective |
-| `is_complete()` | `bool` | True if all objectives passed or out-of-scope |
-| `progress_summary()` | `str` | e.g. "5/10 objectives completed" |

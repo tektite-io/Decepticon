@@ -1,9 +1,10 @@
 ---
 name: cloud-recon
-description: "Use when enumerating cloud infrastructure: AWS S3 bucket discovery, Azure blob storage, GCP bucket enumeration, cloud metadata endpoints, IAM misconfigurations, serverless function discovery, CDN origin detection, and multi-cloud fingerprinting. Covers AWS, Azure, and GCP enumeration patterns. Triggers on: 'cloud recon', 'S3 bucket', 'Azure blob', 'GCP bucket', 'cloud enum', 'CDN origin', 'bucket discovery', 'cloud infrastructure', 'serverless', 'container registry'."
+description: "Cloud infrastructure enumeration — AWS S3 buckets, Azure blob storage, GCP buckets, cloud metadata endpoints, IAM misconfigurations, CDN origin detection."
 allowed-tools: Bash Read Write
 metadata:
   subdomain: reconnaissance
+  when_to_use: "cloud recon, S3 bucket, Azure blob, GCP bucket, cloud enum, CDN origin, bucket discovery, cloud infrastructure, serverless, container registry"
   tags: cloud, aws, azure, gcp, s3-bucket, cdn, serverless
   mitre_attack: T1580, T1538
 ---

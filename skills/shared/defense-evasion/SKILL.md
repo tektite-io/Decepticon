@@ -1,9 +1,10 @@
 ---
 name: defense-evasion
-description: "Use when bypassing endpoint defenses: AMSI bypass (memory patching, hardware breakpoints, reflection), ETW patching, ScareCrow framework (EDR unhooking, AES shellcode, code signing spoofing), custom loaders (Nim/Rust/Go), direct/indirect syscalls, LOLBAS execution (mshta, certutil, rundll32, regsvr32), and process injection (process hollowing). Triggers on: 'AMSI bypass', 'ETW patch', 'EDR evasion', 'ScareCrow', 'custom loader', 'syscall', 'LOLBAS', 'process injection', 'defense evasion', 'AV bypass'."
+description: "Endpoint defense bypass — AMSI/ETW patching, ScareCrow framework, custom loaders, direct/indirect syscalls, LOLBAS execution, process injection."
 allowed-tools: Bash Read Write
 metadata:
   subdomain: defense-evasion
+  when_to_use: "AMSI bypass, ETW patch, EDR evasion, ScareCrow, custom loader, syscall, LOLBAS, process injection, defense evasion, AV bypass"
   tags: amsi, etw, edr, scarecrow, loader, syscall, lolbas, injection, evasion
   mitre_attack: T1562, T1027, T1055, T1218, T1036, T1140
 ---

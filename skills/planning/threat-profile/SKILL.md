@@ -1,9 +1,10 @@
 ---
 name: threat-profile
-description: "Build threat actor profiles for red team adversary emulation. Covers APT group research, sophistication tiers, motivation analysis, MITRE ATT&CK technique mapping, initial access vectors, and custom adversary archetypes. Feeds directly into the CONOPS threat_actors field. Use this skill whenever the user mentions threat modeling, adversary emulation, APT simulation, threat actor selection, or asks 'who should we emulate', 'what kind of attacker', even if they don't explicitly say 'threat profile'."
+description: "Threat actor profiling for adversary emulation — APT group research, sophistication tiers, MITRE ATT&CK mapping, initial access vectors, custom archetypes."
 allowed-tools: Read Write Edit
 metadata:
   subdomain: planning
+  when_to_use: "threat modeling, adversary emulation, APT simulation, threat actor selection, who should we emulate, what kind of attacker"
   tags: threat-modeling, apt, adversary-emulation, mitre-attack
   mitre_attack:
 ---

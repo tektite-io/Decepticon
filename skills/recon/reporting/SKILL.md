@@ -1,9 +1,10 @@
 ---
 name: reporting
-description: "Use when producing final recon output: report structure (Executive Summary, Target Overview, Findings), CVSS 3.1/4.0 scoring, MITRE ATT&CK technique mapping (TA0043 Reconnaissance), finding prioritization (CRITICAL/HIGH/MEDIUM/LOW), Markdown table and JSON output formats, file naming conventions, and handoff checklists. Triggers on: 'generate report', 'write report', 'summarize findings', 'CVSS score', 'prioritize findings', 'recon report', 'final report', 'handoff'."
+description: "Recon output formatting — report structure, CVSS scoring, MITRE ATT&CK mapping, finding prioritization, Markdown/JSON output, handoff checklists."
 allowed-tools: Read Write
 metadata:
   subdomain: reporting
+  when_to_use: "generate report, write report, summarize findings, CVSS score, prioritize findings, recon report, final report, handoff"
   tags: report, cvss, findings, mitre-mapping, handoff
   mitre_attack:
 ---

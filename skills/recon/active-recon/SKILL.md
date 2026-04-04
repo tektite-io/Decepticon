@@ -1,9 +1,10 @@
 ---
 name: active-recon
-description: "Use when DIRECTLY probing targets: nmap port scanning (SYN/TCP/UDP), service version detection (-sV), NSE script enumeration (-sC), OS fingerprinting (-O), banner grabbing, web directory fuzzing (ffuf/gobuster), vulnerability scanning (nuclei/nikto), SSL/TLS analysis, and network topology mapping. Includes OPSEC timing guidance, scan type tables, and web-specific enumeration. Triggers on: 'port scan', 'nmap', 'active scan', 'service detection', 'banner grab', 'vulnerability scan', 'nuclei', 'nikto', 'SSL analysis', 'network sweep', 'testssl'."
+description: "Active target probing — port scanning, service detection, vulnerability scanning, banner grabbing, web directory fuzzing, SSL/TLS analysis."
 allowed-tools: Bash Read Write
 metadata:
   subdomain: reconnaissance
+  when_to_use: "port scan, nmap, active scan, service detection, banner grab, vulnerability scan, nuclei, nikto, SSL analysis, network sweep, testssl"
   tags: nmap, port-scan, service-detection, banner-grab, nuclei, vulnerability-scan
   mitre_attack: T1595, T1595.001, T1595.002, T1595.003
 ---
