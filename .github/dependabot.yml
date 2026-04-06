@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      langchain:
+        patterns:
+          - "langchain-*"
+          - "langgraph*"
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: "npm"
+    directory: "/clients/cli"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "docker"
+    directory: "/containers"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
