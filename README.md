@@ -27,8 +27,8 @@
 <a href="https://discord.gg/TZUYsZgrRG">
   <img src="https://img.shields.io/badge/Discord-Join%20Us-7289DA?logo=discord&logoColor=white&style=for-the-badge" alt="Join us on Discord">
 </a>
-<a href="https://purplelab.framer.ai">
-  <img src="https://img.shields.io/badge/Website-purplelab.framer.ai-brightgreen?logo=vercel&logoColor=white&style=for-the-badge" alt="Website">
+<a href="https://decepticon.red">
+  <img src="https://img.shields.io/badge/Website-decepticon.red-brightgreen?logo=vercel&logoColor=white&style=for-the-badge" alt="Website">
 </a>
 <a href="https://docs.decepticon.red">
   <img src="https://img.shields.io/badge/Docs-docs.decepticon.red-8B5CF6?logo=bookstack&logoColor=white&style=for-the-badge" alt="Documentation">
@@ -47,7 +47,7 @@
 **Prerequisites**: [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2. That's it.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PurpleAILAB/Decepticon/main/scripts/install.sh | bash
+curl -fsSL https://decepticon.red/install | bash
 ```
 
 Then configure your API key and start:
