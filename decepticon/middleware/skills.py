@@ -47,6 +47,25 @@ if TYPE_CHECKING:
     from deepagents.middleware.skills import SkillMetadata
 
 
+def _unwrap_backend(backend: Any) -> Any:
+    """Strip EngagementFilesystemBackend wrapping from a backend.
+
+    EngagementFilesystemBackend._real() maps /workspace paths to
+    /workspace/<slug>/..., which mangles /skills/ paths to
+    /workspace/<slug>/skills/... — a path that does not exist in the
+    sandbox container. Skill reads must bypass this wrapper and go
+    directly to the raw DockerSandbox which can reach /skills/ via
+    docker cp / execute().
+    """
+    # Import here to avoid circular import (filesystem.py imports from skills.py
+    # indirectly via middleware/__init__.py)
+    from decepticon.middleware.filesystem import EngagementFilesystemBackend  # noqa: PLC0415
+
+    while isinstance(backend, EngagementFilesystemBackend):
+        backend = backend._backend
+    return backend
+
+
 # ── Decepticon skill system prompt template ──────────────────────────────────
 # Replaces both the old shared skill prompt fragment and the base middleware's
 # generic SKILLS_SYSTEM_PROMPT. Placeholders:
@@ -396,7 +415,12 @@ def _build_load_skill_tool(backend: Any, sources: list[str]):  # type: ignore[no
     so it sees the sandbox container's ``/skills/`` mount instead of the
     langgraph container's local fs). Path is restricted to ``/skills/*`` to
     keep this tool's intent distinct from the general ``read_file``.
+
+    Strips any EngagementFilesystemBackend wrapping — /skills/ paths must
+    reach the raw sandbox directly; the engagement wrapper mangles them to
+    /workspace/<slug>/skills/... which does not exist in the container.
     """
+    backend = _unwrap_backend(backend)
 
     @tool
     def load_skill(skill_path: str, include_siblings: bool = False) -> str:
