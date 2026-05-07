@@ -109,7 +109,8 @@ class TestHarness:
         challenge = _make_challenge(tmp_path)
 
         with patch("benchmark.harness.time") as mock_time:
-            mock_time.time.side_effect = [100.0, 100.42]
+            # call order: run_start, agent_start, now (in except handler)
+            mock_time.time.side_effect = [100.0, 100.0, 100.42]
 
             result = await harness.run_challenge(challenge)
 
@@ -157,7 +158,8 @@ class TestHarness:
         challenge = _make_challenge(tmp_path)
 
         with patch("benchmark.harness.time") as mock_time:
-            mock_time.time.side_effect = [100.0, 100.0, 101.23]
+            # call order: run_start, agent_start, BenchmarkStepResult, now (success path)
+            mock_time.time.side_effect = [100.0, 100.0, 101.23, 101.23]
 
             result = await harness.run_challenge(challenge)
 

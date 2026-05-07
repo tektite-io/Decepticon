@@ -391,7 +391,8 @@ class Harness:
         # — see _ActiveRun docstring for the bug this fixes.
         active = _ActiveRun(langgraph_url=self.config.langgraph_url)
 
-        start = time.time()
+        run_start = time.time()
+        agent_start: float | None = None
         try:
             setup_result = self.provider.setup(challenge)
             if not setup_result.success:
@@ -402,12 +403,14 @@ class Harness:
                     tags=challenge.tags,
                     passed=False,
                     error=setup_result.error,
-                    duration_seconds=round(time.time() - start, 2),
+                    duration_seconds=round(time.time() - run_start, 2),
+                    setup_seconds=round(time.time() - run_start, 2),
                 )
 
             # Invoke decepticon main agent — handles full chain via SubAgentMiddleware
             # Agent creates its own OPPLAN based on challenge info
             extra_ports = setup_result.extra_ports
+            agent_start = time.time()
             agent_resp = await asyncio.wait_for(
                 self._invoke_agent(challenge, setup_result.target_url, extra_ports, active=active),
                 timeout=self.config.timeout,
@@ -421,7 +424,7 @@ class Harness:
                     agent_used="decepticon",
                     outcome="PASSED" if "FLAG{" in agent_resp.text else "BLOCKED",
                     raw_output=agent_resp.text,
-                    duration_seconds=round(time.time() - start, 2),
+                    duration_seconds=round(time.time() - (agent_start or run_start), 2),
                 )
             )
 
@@ -439,7 +442,9 @@ class Harness:
                 )
 
             result = self.provider.evaluate(challenge, state, workspace)
-            result.duration_seconds = round(time.time() - start, 2)
+            now = time.time()
+            result.duration_seconds = round(now - (agent_start or run_start), 2)
+            result.setup_seconds = round((agent_start or run_start) - run_start, 2)
             result.trace_id = agent_resp.trace_id
             result.token_count = agent_resp.token_count
             result.agent_summary = agent_resp.text[:500] if agent_resp.text else None
@@ -463,22 +468,25 @@ class Harness:
             workspace_text = self._scan_workspace_for_output(workspace)
             if workspace_text and "FLAG{" in workspace_text:
                 state = BenchmarkRunState()
+                now = time.time()
                 state.step_history.append(
                     BenchmarkStepResult(
                         objective_id="OBJ-002",
                         agent_used="decepticon",
                         outcome="PASSED",
                         raw_output=workspace_text,
-                        duration_seconds=round(time.time() - start, 2),
+                        duration_seconds=round(now - (agent_start or run_start), 2),
                     )
                 )
                 result = self.provider.evaluate(challenge, state, workspace)
-                result.duration_seconds = round(time.time() - start, 2)
+                result.duration_seconds = round(now - (agent_start or run_start), 2)
+                result.setup_seconds = round((agent_start or run_start) - run_start, 2)
                 result.cancel_outcome = cancel_outcome
                 result.terminal_status_at_teardown = terminal_status
                 self.provider.teardown(challenge)
                 return result
 
+            now = time.time()
             self.provider.teardown(challenge)
             return ChallengeResult(
                 challenge_id=challenge.id,
@@ -487,7 +495,8 @@ class Harness:
                 tags=challenge.tags,
                 passed=False,
                 error=f"Timeout after {self.config.timeout}s",
-                duration_seconds=round(time.time() - start, 2),
+                duration_seconds=round(now - (agent_start or run_start), 2),
+                setup_seconds=round((agent_start or run_start) - run_start, 2),
                 cancel_outcome=cancel_outcome,
                 terminal_status_at_teardown=terminal_status,
             )
@@ -496,6 +505,7 @@ class Harness:
             # terminal before teardown so we don't tear the target out from
             # under a still-running graph node.
             cancel_outcome, terminal_status = await self._cancel_and_verify_terminal(active)
+            now = time.time()
             self.provider.teardown(challenge)
             return ChallengeResult(
                 challenge_id=challenge.id,
@@ -504,7 +514,8 @@ class Harness:
                 tags=challenge.tags,
                 passed=False,
                 error=str(exc),
-                duration_seconds=round(time.time() - start, 2),
+                duration_seconds=round(now - (agent_start or run_start), 2),
+                setup_seconds=round((agent_start or run_start) - run_start, 2),
                 cancel_outcome=cancel_outcome,
                 terminal_status_at_teardown=terminal_status,
             )

@@ -197,6 +197,8 @@ class Reporter:
             f"**Tags:** {', '.join(result.tags)}",
             f"**Duration:** {result.duration_seconds:.1f}s",
         ]
+        if result.setup_seconds is not None:
+            lines.append(f"**Setup overhead:** {result.setup_seconds:.1f}s")
         if result.flag_captured:
             lines.append(f"**Flag:** `{result.flag_captured}`")
         if result.trace_id:
