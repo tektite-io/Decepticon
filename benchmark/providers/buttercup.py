@@ -71,7 +71,16 @@ def _ensure_upstream(upstream_dir: Path) -> None:
     upstream_dir.parent.mkdir(parents=True, exist_ok=True)
     log.info("cloning Buttercup %s into %s", _BUTTERCUP_PIN, upstream_dir)
     subprocess.run(
-        ["git", "clone", "--depth", "1", "--branch", _BUTTERCUP_PIN, _BUTTERCUP_REPO_URL, str(upstream_dir)],
+        [
+            "git",
+            "clone",
+            "--depth",
+            "1",
+            "--branch",
+            _BUTTERCUP_PIN,
+            _BUTTERCUP_REPO_URL,
+            str(upstream_dir),
+        ],
         check=True,
     )
 
@@ -93,10 +102,7 @@ class ButtercupProvider(BaseBenchmarkProvider):
     def __init__(self, *, upstream_dir: Path | None = None) -> None:
         super().__init__()
         self._upstream_dir = (
-            upstream_dir
-            or Path(__file__).resolve().parent.parent
-            / "buttercup"
-            / "upstream"
+            upstream_dir or Path(__file__).resolve().parent.parent / "buttercup" / "upstream"
         )
 
     @property
@@ -127,7 +133,9 @@ class ButtercupProvider(BaseBenchmarkProvider):
                 level=level,
                 tags=tags,
                 win_condition=meta.get("win_condition") or "patch_verified",
-                compose_dir=challenge_dir if (challenge_dir / "docker-compose.yml").exists() else None,
+                compose_dir=challenge_dir
+                if (challenge_dir / "docker-compose.yml").exists()
+                else None,
             )
             if self._filter_matches(challenge, filters):
                 out.append(challenge)

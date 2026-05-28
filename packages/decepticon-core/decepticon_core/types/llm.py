@@ -677,7 +677,7 @@ class ProxyConfig(BaseModel):
     """LiteLLM proxy connection settings."""
 
     url: str = "http://localhost:4000"
-    api_key: str = "sk-decepticon-master"  # nosemgrep: decepticon-no-hardcoded-default-key
+    api_key: str = ""
     timeout: int = 120
     max_retries: int = 2
 

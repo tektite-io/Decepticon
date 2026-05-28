@@ -19,7 +19,7 @@ COPY packages/decepticon/decepticon/skillogy/proto ./decepticon/skillogy/proto
 # different /app/skills volume to override.
 COPY packages/decepticon/decepticon/skills ./skills
 
-COPY packages/decepticon/__init__.py ./decepticon/__init__.py 2>/dev/null || RUN touch ./decepticon/__init__.py
+RUN touch ./decepticon/__init__.py
 
 RUN pip install --no-cache-dir \
     "fastapi>=0.115.0" \
@@ -27,6 +27,11 @@ RUN pip install --no-cache-dir \
     "pydantic>=2.0.0" \
     "pyyaml>=6.0.0" \
     "grpcio>=1.66.0"
+
+RUN groupadd -r skillogy && useradd -r -g skillogy -d /app -s /sbin/nologin skillogy \
+    && chown -R skillogy:skillogy /app
+
+USER skillogy
 
 ENV SKILLOGY_SKILLS_ROOT=/app/skills
 ENV SKILLOGY_REST_PORT=9100

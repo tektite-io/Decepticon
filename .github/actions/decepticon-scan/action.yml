@@ -115,29 +115,37 @@ runs:
       shell: bash
       env:
         DECEPTICON_API_URL: ${{ inputs.langgraph-url || 'http://localhost:2024' }}
+        DEC_TARGET: ${{ inputs.target }}
+        DEC_SCAN_MODE: ${{ inputs.scan-mode }}
+        DEC_SCOPE_MODE: ${{ inputs.scope-mode }}
+        DEC_DIFF_BASE: ${{ inputs.diff-base }}
+        DEC_SARIF_OUTPUT: ${{ inputs.sarif-output }}
+        DEC_FAIL_ON: ${{ inputs.fail-on }}
+        DEC_INSTRUCTION: ${{ inputs.instruction }}
+        DEC_INSTRUCTION_FILE: ${{ inputs.instruction-file }}
       run: |
         set +e
         EXTRA_ARGS=()
-        if [ -n "${{ inputs.instruction }}" ]; then
-          EXTRA_ARGS+=(--instruction "${{ inputs.instruction }}")
+        if [ -n "${DEC_INSTRUCTION}" ]; then
+          EXTRA_ARGS+=(--instruction "${DEC_INSTRUCTION}")
         fi
-        if [ -n "${{ inputs.instruction-file }}" ]; then
-          EXTRA_ARGS+=(--instruction-file "${{ inputs.instruction-file }}")
+        if [ -n "${DEC_INSTRUCTION_FILE}" ]; then
+          EXTRA_ARGS+=(--instruction-file "${DEC_INSTRUCTION_FILE}")
         fi
         python3 -m decepticon.cli scan \
-          --target "${{ inputs.target }}" \
-          --scan-mode "${{ inputs.scan-mode }}" \
-          --scope-mode "${{ inputs.scope-mode }}" \
-          --diff-base "${{ inputs.diff-base }}" \
-          --sarif-output "${{ inputs.sarif-output }}" \
-          --fail-on "${{ inputs.fail-on }}" \
+          --target "${DEC_TARGET}" \
+          --scan-mode "${DEC_SCAN_MODE}" \
+          --scope-mode "${DEC_SCOPE_MODE}" \
+          --diff-base "${DEC_DIFF_BASE}" \
+          --sarif-output "${DEC_SARIF_OUTPUT}" \
+          --fail-on "${DEC_FAIL_ON}" \
           --non-interactive \
           "${EXTRA_ARGS[@]}"
         EXIT=$?
         echo "exit-code=$EXIT" >> "$GITHUB_OUTPUT"
-        echo "sarif-path=${{ inputs.sarif-output }}" >> "$GITHUB_OUTPUT"
-        if [ -f "${{ inputs.sarif-output }}" ]; then
-          COUNT=$(python3 -c "import json,sys; d=json.load(open('${{ inputs.sarif-output }}')); print(sum(len(r.get('results',[])) for r in d.get('runs',[])))")
+        echo "sarif-path=${DEC_SARIF_OUTPUT}" >> "$GITHUB_OUTPUT"
+        if [ -f "${DEC_SARIF_OUTPUT}" ]; then
+          COUNT=$(python3 -c "import json,sys,os; d=json.load(open(os.environ['DEC_SARIF_OUTPUT'])); print(sum(len(r.get('results',[])) for r in d.get('runs',[])))")
         else
           COUNT=0
         fi
