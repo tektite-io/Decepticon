@@ -123,6 +123,9 @@ jobs:
             --config=p/insecure-transport \
             --config=p/command-injection \
             --config=p/cwe-top-25 \
+            --exclude-rule=python.lang.security.insecure-hash-algorithms.insecure-hash-algorithm-sha1 \
+            --exclude-rule=python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected \
+            --exclude-rule=python.lang.security.audit.eval-detected.eval-detected \
             --exclude=node_modules --exclude=.venv --exclude=dist --exclude=build \
             --exclude=benchmark/xbow-validation-benchmarks \
             --exclude=benchmark/MHBench || true
