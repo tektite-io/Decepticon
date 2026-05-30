@@ -118,8 +118,6 @@ def _evaluate_condition(condition: str, selection_results: dict[str, bool]) -> b
         elif token_clean in selection_results:
             wrapped = token.replace(token_clean, str(selection_results[token_clean]))
             eval_expr_parts.append(wrapped)
-        elif token in {"(", ")"}:
-            eval_expr_parts.append(token)
         else:
             return False
     expr = " ".join(eval_expr_parts)

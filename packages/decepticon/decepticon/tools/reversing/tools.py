@@ -113,7 +113,6 @@ def bin_ghidra_script(binary: str, script_name: str = "decepticon_recon.py") -> 
 def bin_r2_script(binary: str) -> str:
     """Emit a radare2 recon script body the agent can feed via ``r2 -i``."""
     return _json({"source": r2_recon_script(binary)})
-    return _json({"source": r2_recon_script(binary)})
 
 
 # ---------------------------------------------------------------------------
