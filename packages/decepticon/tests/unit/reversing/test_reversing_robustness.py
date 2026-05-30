@@ -99,3 +99,10 @@ class TestBinR2ScriptNoDeadReturn:
         result = bin_r2_script.invoke({"binary": "/tmp/{bad}"})
         parsed = json.loads(result)
         assert "source" in parsed
+
+
+class TestGhidraReconEntryPoint:
+    def test_recon_script_does_not_iterate_single_entry_point(self) -> None:
+        src = ghidra_recon_script("/workspace/target")
+        assert "for a in f.getEntryPoint()" not in src
+        assert "f.getEntryPoint()" in src
