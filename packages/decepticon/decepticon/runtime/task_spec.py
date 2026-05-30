@@ -84,4 +84,5 @@ class Dispatcher(Protocol):
     set) and returns the run-result dict.
     """
 
-    def __call__(self, spec: SubAgentTaskSpec) -> dict[str, Any]: ...
+    def __call__(self, spec: SubAgentTaskSpec) -> dict[str, Any]:
+        raise NotImplementedError
