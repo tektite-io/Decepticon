@@ -129,7 +129,9 @@ export function WebTerminal({
       reconnectMsgShownRef.current = false;
       // Silent reconnect — no terminal output. If the server reattaches us
       // to an existing session, the scrollback replay handles visual continuity.
-      ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+      if (term.cols > 0 && term.rows > 0) {
+        ws.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows }));
+      }
     };
 
     ws.onmessage = (event) => {
@@ -160,6 +162,14 @@ export function WebTerminal({
 
     ws.onclose = (ev) => {
       if (disposedRef.current) return;
+
+      if (ev.code === 4001) {
+        // Server handed this session to another connection (e.g. a second tab).
+        // Go quiet without the "session ended" banner and without reconnecting,
+        // which would only ping-pong the session back and forth.
+        setConnState("disconnected");
+        return;
+      }
 
       if (ev.code === 1000) {
         // Clean close — process exited normally
@@ -283,7 +293,7 @@ export function WebTerminal({
       const fit = new FitAddon();
       term.loadAddon(fit);
       term.open(container);
-      fit.fit();
+      if (container.clientWidth > 0 && container.clientHeight > 0) fit.fit();
 
       termRef.current = term;
       fitRef.current = fit;

@@ -155,9 +155,10 @@ wss.on("connection", async (ws: WebSocket, req) => {
       session.orphanTimer = null;
     }
 
-    // Detach old WS if any
+    // Detach old WS if any. 4001 (app range) distinguishes "another connection
+    // took over" from the genuine PTY-exit 1000 the client treats as session end.
     if (session.ws && session.ws !== ws && session.ws.readyState === WebSocket.OPEN) {
-      session.ws.close(1000, "Replaced by new connection");
+      session.ws.close(4001, "Replaced by new connection");
     }
     session.ws = ws;
 
