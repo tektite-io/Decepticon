@@ -1,17 +1,25 @@
-"""FastAPI REST app for Skillogy — the supported transport.
+"""FastAPI REST app for Skillogy — Phase 1a, Neo4j-backed.
 
-REST endpoints (named after the proto's RPC methods):
-- ``POST /v1/skills:list``        -> ListSkills
-- ``POST /v1/skills:load``        -> LoadSkill
-- ``POST /v1/skills:ingest``      -> IngestSkill
-- ``GET  /v1/health``             -> Health
-- ``GET  /openapi.json``          -> generated OpenAPI 3.1 schema
+REST endpoints (graph-backed; the legacy in-memory dict registry is gone):
 
-A gRPC transport is sketched in ``skillogy.proto`` but is not yet wired
-(no protoc-generated bindings), so ``build_grpc_server`` raises and the
-service falls back to REST — see that function's docstring. The REST app
-runs standalone without grpcio so the CLI / test paths don't require the
-heavier dependency.
+- ``GET  /v1/health``           — service liveness + skill_count + uptime
+- ``POST /v1/skills:find``      — relationship-aware discovery
+- ``POST /v1/skills:load``      — fetch one :Skill body + frontmatter
+- ``POST /v1/skills:traverse``  — variable-length BFS from a Skill seed
+- ``POST /v1/skills:moc``       — per-phase MoC summary
+- ``GET  /openapi.json``        — generated OpenAPI 3.1 schema
+
+The Phase 1a v0.2.1 service architecture pivot makes this app the single
+holder of the Neo4j Bolt connection. ``RestSkillogyClient`` (and through
+it ``SkillogyMiddleware``) consume the wire surface so the langgraph
+agent image carries no Neo4j driver dependency.
+
+The legacy ``/v1/skills:list`` + ``/v1/skills:ingest`` endpoints (and
+the ``SkillRegistry`` + ``ingest_directory`` they depended on) are
+removed. ``build_grpc_server`` is also gone: there are no
+protoc-generated bindings, REST is the only supported transport, and
+keeping a permanently-raising stub function alive only invited
+accidental reintroduction.
 """
 
 from __future__ import annotations
@@ -20,29 +28,14 @@ import hmac
 import logging
 import os
 import time
-from dataclasses import asdict
 from typing import Any
 
-from decepticon.skillogy.proto import (
-    SkillEnvelope,
-    SkillListRequest,
+from decepticon.skillogy.server.neo4j_backend import (
+    CypherWriteRejected,
+    Neo4jBackend,
 )
-from decepticon.skillogy.server.registry import SkillRegistry
 
 log = logging.getLogger(__name__)
-
-
-def _envelope_to_payload(env: SkillEnvelope, include_refs: bool, include_scripts: bool) -> dict:
-    return {
-        "meta": asdict(env.meta),
-        "body": env.body,
-        "references": {k: v.decode("utf-8", errors="replace") for k, v in env.references.items()}
-        if include_refs
-        else {},
-        "scripts": {k: v.decode("utf-8", errors="replace") for k, v in env.scripts.items()}
-        if include_scripts
-        else {},
-    }
 
 
 try:
@@ -53,33 +46,43 @@ except ImportError:
 
 if BaseModel is not None:
 
-    class ListReq(BaseModel):
-        subdomain_filter: list[str] = []
-        tag_filter: list[str] = []
-        mitre_filter: list[str] = []
-        include_safety_critical: bool = True
-        include_gated: bool = True
-        page_size: int = 100
-        page_token: str = ""
+    class FindReq(BaseModel):
+        query: str | None = None
+        subdomain: str | None = None
+        mitre_id: str | None = None
+        tag: str | None = None
+        tactic_id: str | None = None
+        limit: int = 20
 
     class LoadReq(BaseModel):
-        path: str
-        include_references: bool = True
-        include_scripts: bool = True
+        # Accept either a canonical /skills/.../SKILL.md path or a unique
+        # frontmatter ``name``. The server resolves the name route via a
+        # single-shot find before loading.
+        name_or_path: str
 
-    class IngestReq(BaseModel):
-        path: str
-        body: str
-        references: dict[str, str] = {}
-        scripts: dict[str, str] = {}
+    class TraverseReq(BaseModel):
+        from_path: str
+        edge_types: list[str] | None = None
+        depth: int = 2
+
+    class MocReq(BaseModel):
+        phase: str
+        limit: int = 25
 
 
 def build_app(
-    registry: SkillRegistry,
+    backend: Neo4jBackend,
     *,
     started_at: float | None = None,
     api_key: str | None = None,
 ):
+    """Build the FastAPI app bound to ``backend``.
+
+    ``api_key`` defaults to ``$SKILLOGY_API_KEY``; when unset, the
+    protected endpoints are open. The ``GET /v1/health`` endpoint is
+    always open so external orchestrators (compose, k8s) can probe
+    without secret rotation.
+    """
     try:
         from fastapi import Depends, FastAPI, Header, HTTPException  # noqa: PLC0415
     except ImportError as exc:
@@ -103,73 +106,83 @@ def build_app(
 
     app = FastAPI(
         title="Skillogy",
-        version="0.1.0",
-        description="Decepticon skill catalog service. Speaks REST and gRPC.",
+        version="0.2.0",
+        description=(
+            "Decepticon skill catalog service (Phase 1a, Neo4j-backed). "
+            "Three relationship-aware operations plus a per-phase MoC "
+            "summary; see /openapi.json for the wire schema."
+        ),
     )
     boot_time = started_at or time.time()
 
     @app.get("/v1/health")
     async def health() -> dict[str, Any]:
+        try:
+            stats = backend.health()
+        except Exception as exc:  # noqa: BLE001
+            log.warning("health check backend probe failed: %r", exc)
+            return {
+                "status": "degraded",
+                "skill_count": 0,
+                "uptime_seconds": int(time.time() - boot_time),
+                "error": str(exc),
+            }
         return {
-            "status": "ok",
-            "skill_count": len(registry),
+            "status": stats.get("status", "ok"),
+            "skill_count": stats.get("skill_count", 0),
             "uptime_seconds": int(time.time() - boot_time),
         }
 
-    @app.post("/v1/skills:list", dependencies=_protected)
-    async def list_skills(req: ListReq) -> dict[str, Any]:
-        resp = registry.list(
-            SkillListRequest(
-                subdomain_filter=req.subdomain_filter,
-                tag_filter=req.tag_filter,
-                mitre_filter=req.mitre_filter,
-                include_safety_critical=req.include_safety_critical,
-                include_gated=req.include_gated,
-                page_size=req.page_size,
-                page_token=req.page_token,
+    @app.post("/v1/skills:find", dependencies=_protected)
+    async def find_skill(req: FindReq) -> dict[str, Any]:
+        try:
+            hits = backend.find_skill(
+                query=req.query,
+                subdomain=req.subdomain,
+                mitre_id=req.mitre_id,
+                tag=req.tag,
+                tactic_id=req.tactic_id,
+                limit=req.limit,
             )
-        )
-        return {
-            "skills": [asdict(s) for s in resp.skills],
-            "next_page_token": resp.next_page_token,
-            "total_count": resp.total_count,
-        }
+        except ValueError as exc:
+            # find_skill raises ValueError when no filters are passed —
+            # surface it as a client-error code, not 500.
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"count": len(hits), "hits": hits}
 
     @app.post("/v1/skills:load", dependencies=_protected)
     async def load_skill(req: LoadReq) -> dict[str, Any]:
-        env = registry.load(req.path)
-        if env is None:
-            raise HTTPException(status_code=404, detail=f"skill not found: {req.path}")
-        return {"skill": _envelope_to_payload(env, req.include_references, req.include_scripts)}
+        target = req.name_or_path
+        if target.startswith("/skills/"):
+            props = backend.load_skill(target)
+        else:
+            hits = backend.find_skill(query=target, limit=10)
+            exact = [h for h in hits if h.get("name") == target]
+            if not exact:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"no Skill with name or path matching {target!r}",
+                )
+            props = backend.load_skill(exact[0]["path"])
+        if props is None:
+            raise HTTPException(status_code=404, detail=f"no Skill at path {target!r}")
+        return {"props": props}
 
-    @app.post("/v1/skills:ingest", dependencies=_protected)
-    async def ingest_skill(req: IngestReq) -> dict[str, Any]:
-        refs = {k: v.encode("utf-8") for k, v in req.references.items()}
-        scripts = {k: v.encode("utf-8") for k, v in req.scripts.items()}
-        resp = registry.ingest(req.path, req.body, references=refs, scripts=scripts)
-        return asdict(resp)
+    @app.post("/v1/skills:traverse", dependencies=_protected)
+    async def traverse(req: TraverseReq) -> dict[str, Any]:
+        rows = backend.traverse(req.from_path, edge_types=req.edge_types, depth=req.depth)
+        return {"count": len(rows), "rows": rows}
+
+    @app.post("/v1/skills:moc", dependencies=_protected)
+    async def moc_summary(req: MocReq) -> dict[str, Any]:
+        rows = backend.query_moc_summary(req.phase, limit=req.limit)
+        return {"count": len(rows), "mocs": rows}
+
+    # The amendment removes ``run_cypher_read`` from the agent surface,
+    # but the backend method is kept for internal diagnostics. We expose
+    # nothing here — the REST app is exactly the agent's three tools plus
+    # health and MoC. The day a Phase 1b ``recall`` ships, this is the
+    # one place to add a new endpoint.
+    _ = CypherWriteRejected  # imported for downstream tests that probe symbols
 
     return app
-
-
-def build_grpc_server(registry: SkillRegistry, *, port: int = 50051):
-    """The gRPC transport is not wired yet — this always raises ``RuntimeError``.
-
-    Skillogy ships a hand-rolled ``skillogy.proto`` but no ``protoc``-generated
-    bindings, so there is no servicer registrar (``add_*Servicer_to_server``)
-    and no message (de)serializers. A ``grpc.Server`` constructed here would
-    bind ``port`` yet answer every RPC with ``UNIMPLEMENTED`` — a silent dead
-    port that *looks* healthy. Until codegen is wired into the build, **REST is
-    the only supported transport** (``build_app`` + ``RestSkillogyClient``);
-    ``decepticon.skillogy.__main__._start_grpc`` already catches this
-    ``RuntimeError`` and serves REST only.
-
-    ``registry`` and ``port`` are accepted so this stays signature-compatible
-    with its single call site and the future protoc-backed implementation.
-    """
-    raise RuntimeError(
-        "Skillogy gRPC transport is not wired: skillogy.proto has no "
-        "protoc-generated bindings, so the server would register no servicer "
-        "and could not (de)serialize messages. Use the REST transport — "
-        "build_app(registry) served by uvicorn, with RestSkillogyClient."
-    )

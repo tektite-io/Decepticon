@@ -1,7 +1,18 @@
-"""Skillogy server: registry + ingester + REST app + gRPC service."""
+"""Skillogy server: Neo4j-backed REST app for Phase 1a (Amendment v0.2.2).
 
-from decepticon.skillogy.server.app import build_app, build_grpc_server
-from decepticon.skillogy.server.ingest import ingest_directory
-from decepticon.skillogy.server.registry import SkillRegistry
+The legacy in-memory ``SkillRegistry`` and the markdown ``ingest_directory``
+helper were removed; their files (``registry.py`` and ``ingest.py``) are
+kept for one release as no-import-graph dead code so anyone importing
+the old names sees a clean ``ImportError`` from this package instead of
+a stale class. See ``docs/design/skillogy-brain-redesign.md`` Amendment
+v0.2.2 for the rationale.
+"""
 
-__all__ = ["SkillRegistry", "build_app", "build_grpc_server", "ingest_directory"]
+from decepticon.skillogy.server.app import build_app
+from decepticon.skillogy.server.neo4j_backend import (
+    CypherWriteRejected,
+    Neo4jBackend,
+    assert_read_only,
+)
+
+__all__ = ["CypherWriteRejected", "Neo4jBackend", "assert_read_only", "build_app"]

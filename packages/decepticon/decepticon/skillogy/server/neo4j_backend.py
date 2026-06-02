@@ -1,12 +1,13 @@
 """Neo4j-backed storage for the skillogy service.
 
-Replaces the in-memory ``SkillRegistry`` (kept in ``registry.py`` for
-the migration window). The server now opens a Bolt session to the same
-Neo4j instance that ``skillogy.builder`` populates via ``skills.cypher``.
+Replaces the in-memory ``SkillRegistry`` (deleted in Amendment v0.2.2
+along with ``ingest.py`` — there were no live importers left after the
+REST app was rewritten). The server opens a Bolt session to the Neo4j
+instance that ``skillogy.builder`` populates via ``skills.cypher``.
 
-The wire protocol stays the same — the same ``SkillEnvelope`` /
-``SkillMeta`` proto types are returned — but every read now answers from
-the live graph instead of an in-memory dict.
+The wire protocol is the new three-operation surface
+(``find_skill`` / ``load_skill`` / ``traverse``) plus
+``query_moc_summary`` — see ``server/app.py``.
 
 Read-only enforcement
 ---------------------
@@ -100,6 +101,23 @@ class Neo4jBackend:
 
     def close(self) -> None:
         self._driver.close()
+
+    # ---- bulk cypher ingest (used by service boot to seed the graph) ----
+
+    def bulk_ingest_cypher(self, cypher_text: str) -> int:
+        """Execute ``cypher_text`` against Neo4j as a sequence of statements.
+
+        The builder emits ``MERGE``-only statements terminated by
+        ``;`` — idempotent re-runs are safe. Returns the number of
+        statements executed. Uses an explicit write session because
+        startup ingest is the one path that legitimately writes; runtime
+        endpoints use read-only sessions.
+        """
+        statements = [s.strip() for s in cypher_text.split(";") if s.strip()]
+        with self._driver.session(database=self._database) as session:
+            for stmt in statements:
+                session.run(stmt)
+        return len(statements)
 
     # ---- skill ops ----
 
