@@ -86,6 +86,35 @@ class NodeKind(StrEnum):
     # Defense (Blue Cell — proven detection coverage)
     DETECTION_FIRED = "DetectionFired"
     DEFENSE_ACTION = "DefenseAction"
+    # Active Directory (BloodHound 5.x — see
+    # docs/design/2026-06-04-bloodhound-kgstore-mapping.md). AD-prefixed
+    # kinds coexist with the generic identity kinds above; the
+    # AD operator's BloodHound ingest emits these, and chain analysis
+    # filters with ``MATCH (u:ADUser)-[:MEMBER_OF*]->(:ADGroup ...)``.
+    AD_USER = "ADUser"
+    AD_COMPUTER = "ADComputer"
+    AD_GROUP = "ADGroup"
+    AD_DOMAIN = "ADDomain"
+    AD_GPO = "ADGPO"
+    AD_OU = "ADOU"
+    AD_CONTAINER = "ADContainer"
+    AD_CERT_TEMPLATE = "ADCertTemplate"
+    AD_ENTERPRISE_CA = "ADEnterpriseCA"
+    AD_ROOT_CA = "ADRootCA"
+    AD_AIA_CA = "ADAIACA"
+    AD_NT_AUTH_STORE = "ADNTAuthStore"
+    AD_ISSUANCE_POLICY = "ADIssuancePolicy"
+    AD_LOCAL_GROUP = "ADLocalGroup"
+    # Solidity (Slither ``--json`` — see
+    # docs/design/2026-06-04-slither-kgstore-mapping.md). ``Contract`` and
+    # ``SourceFile`` are already defined above and reused.
+    SOLIDITY_FUNCTION = "Function"
+    SOLIDITY_STATE_VAR = "StateVar"
+    SOLIDITY_EVENT = "Event"
+    SOLIDITY_CUSTOM_ERROR = "CustomError"
+    SOLIDITY_ENUM = "Enum"
+    SOLIDITY_STRUCT = "Struct"
+    SOLIDITY_PRAGMA = "Pragma"
 
 
 class EdgeKind(StrEnum):
@@ -134,6 +163,87 @@ class EdgeKind(StrEnum):
     # Defense (Blue Cell — links a fired detection to what it caught)
     DETECTED = "DETECTED"
     USES_RULE = "USES_RULE"
+    # Active Directory (BloodHound 5.x — see
+    # docs/design/2026-06-04-bloodhound-kgstore-mapping.md). The generic
+    # ``MEMBER_OF`` / ``HAS_SESSION`` / ``ADMIN_TO`` / ``OWNS`` /
+    # ``CAN_ACCESS`` above are reused where the BHCE edge name matches.
+    ALLOWED_TO_DELEGATE = "ALLOWED_TO_DELEGATE"
+    ALLOWED_TO_ACT = "ALLOWED_TO_ACT"
+    HAS_SID_HISTORY = "HAS_SID_HISTORY"
+    GP_LINK = "GP_LINK"
+    PUBLISHED_TO = "PUBLISHED_TO"
+    HOSTS_CA_SERVICE = "HOSTS_CA_SERVICE"
+    OID_GROUP_LINK = "OID_GROUP_LINK"
+    ROOT_CA_FOR = "ROOT_CA_FOR"
+    ISSUED_SIGNED_BY = "ISSUED_SIGNED_BY"
+    TRUSTED_FOR_NTAUTH = "TRUSTED_FOR_NTAUTH"
+    DUMP_SMSA_PASSWORD = "DumpSMSAPassword"
+    MEMBER_OF_LOCAL_GROUP = "MEMBER_OF_LOCAL_GROUP"
+    # Trust (4-way split from BHCE 5.x — replaces the single legacy
+    # ``TrustedBy`` edge, branched on ``TrustType`` + ``IsTransitive``).
+    SAME_FOREST_TRUST = "SameForestTrust"
+    CROSS_FOREST_TRUST = "CrossForestTrust"
+    ABUSE_TGT_DELEGATION = "AbuseTGTDelegation"
+    SPOOF_SID_HISTORY = "SpoofSIDHistory"
+    # ADCS ESC — server-computed post-process edges. ESC2/5/7/8/11/12/
+    # 14/15/16 are placeholders for community-collector parity
+    # (Certipy etc.); BHCE main 2026-06 does not emit them yet but the
+    # data path is ready.
+    ADCS_ESC1 = "ADCSESC1"
+    ADCS_ESC2 = "ADCSESC2"
+    ADCS_ESC3 = "ADCSESC3"
+    ADCS_ESC4 = "ADCSESC4"
+    ADCS_ESC5 = "ADCSESC5"
+    ADCS_ESC6A = "ADCSESC6a"
+    ADCS_ESC6B = "ADCSESC6b"
+    ADCS_ESC7 = "ADCSESC7"
+    ADCS_ESC8 = "ADCSESC8"
+    ADCS_ESC9A = "ADCSESC9a"
+    ADCS_ESC9B = "ADCSESC9b"
+    ADCS_ESC10A = "ADCSESC10a"
+    ADCS_ESC10B = "ADCSESC10b"
+    ADCS_ESC11 = "ADCSESC11"
+    ADCS_ESC12 = "ADCSESC12"
+    ADCS_ESC13 = "ADCSESC13"
+    ADCS_ESC14 = "ADCSESC14"
+    ADCS_ESC15 = "ADCSESC15"
+    ADCS_ESC16 = "ADCSESC16"
+    # AD post-process edges (BHCE-server-computed).
+    GOLDEN_CERT = "GoldenCert"
+    SYNC_LAPS_PASSWORD = "SyncLAPSPassword"
+    DCSYNC = "DCSync"
+    COERCE_AND_RELAY_NTLM_TO_ADCS = "CoerceAndRelayNTLMToADCS"
+    COERCE_AND_RELAY_NTLM_TO_LDAP = "CoerceAndRelayNTLMToLDAP"
+    COERCE_AND_RELAY_NTLM_TO_LDAPS = "CoerceAndRelayNTLMToLDAPS"
+    COERCE_AND_RELAY_NTLM_TO_SMB = "CoerceAndRelayNTLMToSMB"
+    COERCE_TO_TGT = "CoerceToTGT"
+    HAS_TRUST_KEYS = "HasTrustKeys"
+    SYNCED_TO_ENTRA_USER = "SyncedToEntraUser"
+    SYNCED_TO_AD_USER = "SyncedToADUser"
+    # ACE right names (raw forms — ``Owns`` / ``WriteOwner`` are emitted
+    # by post-process as the existing ``OWNS`` / ``WRITE_OWNER`` kinds).
+    WRITE_SPN = "WriteSPN"
+    READ_LAPS_PASSWORD = "ReadLAPSPassword"
+    READ_GMSA_PASSWORD = "ReadGMSAPassword"
+    ADD_KEY_CREDENTIAL_LINK = "AddKeyCredentialLink"
+    ALL_EXTENDED_RIGHTS = "AllExtendedRights"
+    FORCE_CHANGE_PASSWORD = "ForceChangePassword"
+    MANAGE_CA = "ManageCA"
+    MANAGE_CERTIFICATES = "ManageCertificates"
+    GET_CHANGES = "GetChanges"
+    GET_CHANGES_ALL = "GetChangesAll"
+    OWNS_LIMITED_RIGHTS = "OwnsLimitedRights"
+    WRITE_OWNER_LIMITED_RIGHTS = "WriteOwnerLimitedRights"
+    WRITE_DACL = "WriteDacl"
+    WRITE_OWNER = "WriteOwner"
+    GENERIC_ALL = "GenericAll"
+    GENERIC_WRITE = "GenericWrite"
+    ADD_MEMBER = "AddMember"
+    ADD_SELF = "AddSelf"
+    WRITE_GP_LINK = "WriteGPLink"
+    WRITE_ACCOUNT_RESTRICTIONS = "WriteAccountRestrictions"
+    # Solidity (Slither) — function-call graph edge.
+    CALLS = "CALLS"
 
 
 class Severity(StrEnum):
