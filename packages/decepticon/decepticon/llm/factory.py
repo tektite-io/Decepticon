@@ -99,9 +99,7 @@ def _resolve_llm_timeout_seconds() -> float:
         try:
             value = float(raw)
         except ValueError as exc:
-            raise ValueError(
-                f"{source} must be a number (got {raw!r})"
-            ) from exc
+            raise ValueError(f"{source} must be a number (got {raw!r})") from exc
     else:
         value = float(DEFAULT_LLM_REQUEST_TIMEOUT_SECONDS)
     if value <= 0:
