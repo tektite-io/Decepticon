@@ -28,6 +28,8 @@ class _FakeKGStore:
         golden_created: int = 1,
         esc1_created: int = 1,
         esc4_created: int = 1,
+        esc6a_created: int = 1,
+        esc6b_created: int = 1,
         esc9a_created: int = 1,
         esc9b_created: int = 1,
     ) -> None:
@@ -36,6 +38,8 @@ class _FakeKGStore:
         self._golden_created = golden_created
         self._esc1_created = esc1_created
         self._esc4_created = esc4_created
+        self._esc6a_created = esc6a_created
+        self._esc6b_created = esc6b_created
         self._esc9a_created = esc9a_created
         self._esc9b_created = esc9b_created
         self.closed = False
@@ -45,10 +49,14 @@ class _FakeKGStore:
     ) -> list[dict[str, Any]]:
         self.calls.append((query, dict(params), engagement))
         # Each algorithm is identifiable by a distinctive substring in
-        # its MATCH pattern. Check the more-specific ESC9 / ESC4 / ESC1
-        # markers before falling back to the broader GoldenCert one
-        # so the alternation doesn't trip the GOLDEN_CERT check on
-        # the ``OWNS_LIMITED_RIGHTS`` substring used in ESC4.
+        # its MATCH pattern. Check the more-specific ESC* markers
+        # before falling back to the broader GoldenCert one so the
+        # ``OWNS_LIMITED_RIGHTS`` substring used in ESC4 doesn't trip
+        # the wrong return value.
+        if "ADCS_ESC6A" in query:
+            return [{"created": self._esc6a_created}]
+        if "ADCS_ESC6B" in query:
+            return [{"created": self._esc6b_created}]
         if "ADCS_ESC9A" in query:
             return [{"created": self._esc9a_created}]
         if "ADCS_ESC9B" in query:
@@ -85,6 +93,8 @@ class TestPublicSignatures:
             golden_created=2,
             esc1_created=4,
             esc4_created=5,
+            esc6a_created=8,
+            esc6b_created=9,
             esc9a_created=6,
             esc9b_created=7,
         )
@@ -96,6 +106,8 @@ class TestPublicSignatures:
         assert stats.golden_cert == 2
         assert stats.adcs_esc1 == 4
         assert stats.adcs_esc4 == 5
+        assert stats.adcs_esc6a == 8
+        assert stats.adcs_esc6b == 9
         assert stats.adcs_esc9a == 6
         assert stats.adcs_esc9b == 7
 
@@ -107,7 +119,7 @@ class TestPublicSignatures:
             source_episode_id="ep-x",
             created_by="adcs_post_test",
         )
-        assert len(store.calls) == 6
+        assert len(store.calls) == 8
         for _query, params, engagement in store.calls:
             assert engagement == "t-eng"
             assert params["engagement"] == "t-eng"
@@ -334,6 +346,64 @@ class TestAdcsEsc4Query:
         )
         q = self._esc4_query(store)
         assert "via_template" in q
+
+
+# ── ADCS ESC6a / ESC6b algorithms ──────────────────────────────────
+
+
+class TestAdcsEsc6Queries:
+    def _esc6_queries(self, store: _FakeKGStore) -> tuple[str, str]:
+        esc6a, esc6b = None, None
+        for q, _params, _engagement in store.calls:
+            if "ADCS_ESC6A" in q:
+                esc6a = q
+            elif "ADCS_ESC6B" in q:
+                esc6b = q
+        if esc6a is None or esc6b is None:
+            raise AssertionError("ESC6a or ESC6b query missing")
+        return esc6a, esc6b
+
+    def test_both_variants_require_is_user_specifies_san_enabled(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        esc6a, esc6b = self._esc6_queries(store)
+        # ``EDITF_ATTRIBUTESUBJECTALTNAME2`` surfaces as this CA prop.
+        assert "eca.isuserspecifiessanenabled = true" in esc6a
+        assert "eca.isuserspecifiessanenabled = true" in esc6b
+
+    def test_esc6b_requires_no_security_extension(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        _, esc6b = self._esc6_queries(store)
+        # ESC6b is strictly broader: no security-extension fallback.
+        assert "ct.nosecurityextension = true" in esc6b
+
+    def test_esc6a_does_not_filter_on_no_security_extension(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        esc6a, _ = self._esc6_queries(store)
+        # ESC6a matches authentication-enabled templates with or
+        # without the security extension.
+        assert "ct.nosecurityextension" not in esc6a
+
+    def test_both_variants_require_enroll_via_bh_right(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        esc6a, esc6b = self._esc6_queries(store)
+        assert "bh_right = 'Enroll'" in esc6a
+        assert "bh_right = 'Enroll'" in esc6b
 
 
 # ── ADCS ESC9a / ESC9b algorithms ──────────────────────────────────

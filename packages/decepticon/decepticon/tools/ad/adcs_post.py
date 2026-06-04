@@ -45,6 +45,8 @@ class PostProcessStats:
     golden_cert: int = 0
     adcs_esc1: int = 0
     adcs_esc4: int = 0
+    adcs_esc6a: int = 0
+    adcs_esc6b: int = 0
     adcs_esc9a: int = 0
     adcs_esc9b: int = 0
 
@@ -190,6 +192,73 @@ _ADCS_ESC4_QUERY = (
 # Both variants also need raw Enroll rights + the template to be
 # published by an EnterpriseCA.
 
+# ADCS ESC6a / ESC6b — EDITF_ATTRIBUTESUBJECTALTNAME2 abuse.
+#
+# When an EnterpriseCA has the registry flag
+# ``EDITF_ATTRIBUTESUBJECTALTNAME2`` set, callers can request any
+# SAN they like in the CSR — which means an enroller who can issue
+# any authentication-enabled template can impersonate any principal
+# (UPN / DNS) via the SAN.
+#
+# BHCE exposes this as the ``isuserspecifiessanenabled`` property
+# on the CA node. ESC6a and ESC6b only differ in whether the
+# template also has the strong-mapping security extension stripped:
+#
+#   ESC6a: any authentication-enabled template, manager approval off
+#   ESC6b: same but with ``nosecurityextension = true``
+#
+# ESC6b is rarer but strictly broader in impact (no cert-mapping
+# fallback), so we synthesise both edges so chain planners can
+# prioritise.
+
+_ADCS_ESC6A_QUERY = (
+    "MATCH (eca:ADEnterpriseCA {engagement: $engagement}) "
+    "WHERE eca.isuserspecifiessanenabled = true "
+    "MATCH (eca)-[:PUBLISHED_TO {engagement: $engagement}]->(ct:ADCertTemplate {engagement: $engagement}) "
+    "WHERE ct.authenticationenabled = true "
+    "  AND coalesce(ct.requiresmanagerapproval, false) = false "
+    "MATCH (p)-[en {engagement: $engagement}]->(ct) "
+    "WHERE en.bh_right = 'Enroll' "
+    "WITH DISTINCT p, eca, ct "
+    "MERGE (p)-[r:ADCS_ESC6A {engagement: $engagement}]->(eca) "
+    "ON CREATE SET r.firstseen = $now, "
+    "              r.created_by = $created_by, "
+    "              r.source_episode_id = $source_episode_id, "
+    "              r.post_process_source = 'ESC6a: SAN-enabled CA + AuthEnabled template + Enroll', "
+    "              r.via_template = ct.key, "
+    "              r._jc = true "
+    "ON MATCH SET r._jc = false "
+    "SET r.lastupdated = $now "
+    "WITH r, r._jc AS just_created "
+    "REMOVE r._jc "
+    "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
+)
+
+_ADCS_ESC6B_QUERY = (
+    "MATCH (eca:ADEnterpriseCA {engagement: $engagement}) "
+    "WHERE eca.isuserspecifiessanenabled = true "
+    "MATCH (eca)-[:PUBLISHED_TO {engagement: $engagement}]->(ct:ADCertTemplate {engagement: $engagement}) "
+    "WHERE ct.authenticationenabled = true "
+    "  AND ct.nosecurityextension = true "
+    "  AND coalesce(ct.requiresmanagerapproval, false) = false "
+    "MATCH (p)-[en {engagement: $engagement}]->(ct) "
+    "WHERE en.bh_right = 'Enroll' "
+    "WITH DISTINCT p, eca, ct "
+    "MERGE (p)-[r:ADCS_ESC6B {engagement: $engagement}]->(eca) "
+    "ON CREATE SET r.firstseen = $now, "
+    "              r.created_by = $created_by, "
+    "              r.source_episode_id = $source_episode_id, "
+    "              r.post_process_source = 'ESC6b: SAN-enabled CA + AuthEnabled + NoSecExt template + Enroll', "
+    "              r.via_template = ct.key, "
+    "              r._jc = true "
+    "ON MATCH SET r._jc = false "
+    "SET r.lastupdated = $now "
+    "WITH r, r._jc AS just_created "
+    "REMOVE r._jc "
+    "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
+)
+
+
 _ADCS_ESC9A_QUERY = (
     "MATCH (ct:ADCertTemplate {engagement: $engagement}) "
     "WHERE ct.authenticationenabled = true "
@@ -327,6 +396,34 @@ def synthesise_adcs_post(
         )
         if rows:
             stats.adcs_esc4 = int(rows[0].get("created") or 0)
+
+        # ADCS ESC6a
+        rows = target_store.execute_write(
+            _ADCS_ESC6A_QUERY,
+            {
+                "engagement": engagement,
+                "now": now,
+                "created_by": created_by,
+                "source_episode_id": source_episode_id,
+            },
+            engagement=engagement,
+        )
+        if rows:
+            stats.adcs_esc6a = int(rows[0].get("created") or 0)
+
+        # ADCS ESC6b
+        rows = target_store.execute_write(
+            _ADCS_ESC6B_QUERY,
+            {
+                "engagement": engagement,
+                "now": now,
+                "created_by": created_by,
+                "source_episode_id": source_episode_id,
+            },
+            engagement=engagement,
+        )
+        if rows:
+            stats.adcs_esc6b = int(rows[0].get("created") or 0)
 
         # ADCS ESC9a
         rows = target_store.execute_write(
