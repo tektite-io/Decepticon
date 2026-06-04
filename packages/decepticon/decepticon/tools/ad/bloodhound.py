@@ -688,6 +688,130 @@ def _ingest_local_groups(state: _IngestState, computer_key: str, obj: dict[str, 
                 )
 
 
+# Computer ``GPOChanges`` block — GptTmpl.inf-derived effective group
+# membership changes applied to the host by GPOs linked to its OU.
+#
+# Each list under GPOChanges enumerates the **principals** that the
+# GPO push grants the corresponding local primitive on **this**
+# computer. BHCE's server walks them and synthesises one direct
+# access edge per (principal, computer) pair:
+#
+#   LocalAdmins         → AdminTo
+#   RemoteDesktopUsers  → CAN_ACCESS  (CanRDP equivalent)
+#   DcomUsers           → CAN_ACCESS  (ExecuteDCOM equivalent)
+#   PSRemoteUsers       → CAN_ACCESS  (CanPSRemote equivalent)
+#
+# The provenance prop ``via_gpo_changes`` records which bucket the
+# edge came from so analysts can re-derive the chain to the GPO
+# without a separate query.
+
+_GPO_CHANGES_BUCKET_TO_EDGE: dict[str, tuple[EdgeKind, float]] = {
+    "LocalAdmins": (EdgeKind.ADMIN_TO, 0.3),
+    "RemoteDesktopUsers": (EdgeKind.CAN_ACCESS, 0.6),
+    "DcomUsers": (EdgeKind.CAN_ACCESS, 0.6),
+    "PSRemoteUsers": (EdgeKind.CAN_ACCESS, 0.5),
+}
+
+
+def _ingest_gpo_changes(state: _IngestState, computer_key: str, obj: dict[str, Any]) -> None:
+    """Computer ``GPOChanges`` → direct AdminTo / CAN_ACCESS edges per
+    principal granted that primitive on this host by linked GPOs."""
+    gpo_changes = obj.get("GPOChanges")
+    if not isinstance(gpo_changes, dict):
+        return
+    for bucket, (edge_kind, weight) in _GPO_CHANGES_BUCKET_TO_EDGE.items():
+        principals = gpo_changes.get(bucket) or []
+        if not isinstance(principals, list):
+            continue
+        for principal in principals:
+            if not isinstance(principal, dict):
+                continue
+            principal_sid = principal.get("ObjectIdentifier")
+            if not isinstance(principal_sid, str) or not principal_sid:
+                continue
+            principal_type = principal.get("ObjectType") or "User"
+            principal_type = (
+                principal_type if principal_type in _BH_TYPE_SINGULAR.values() else "User"
+            )
+            principal_key = _ensure_placeholder(
+                state, sid=principal_sid, default_type=principal_type
+            )
+            state.add_edge(
+                src_key=principal_key,
+                dst_key=computer_key,
+                kind=edge_kind,
+                weight=weight,
+                props={
+                    "bh_right": "GPOChange",
+                    "via_gpo_changes": bucket,
+                },
+            )
+
+
+# Computer ``UserRights`` block — the host's effective User Rights
+# Assignments (a different policy surface from GPOChanges). BHCE
+# maps a small whitelist of privileges to direct access edges:
+#
+#   SeRemoteInteractiveLogonRight → CAN_ACCESS (CanRDP via UR)
+#   SeInteractiveLogonRight       → CAN_ACCESS (local logon proxy)
+#   SeServiceLogonRight           → CAN_ACCESS (service-only)
+#   SeBatchLogonRight             → CAN_ACCESS (scheduled tasks)
+#
+# Privileges outside this whitelist are ignored — they don't carry
+# the lateral-movement primitive we care about on the chain graph.
+
+_USER_RIGHTS_PRIVILEGE_TO_EDGE: dict[str, tuple[EdgeKind, float]] = {
+    "SeRemoteInteractiveLogonRight": (EdgeKind.CAN_ACCESS, 0.6),
+    "SeInteractiveLogonRight": (EdgeKind.CAN_ACCESS, 0.7),
+    "SeServiceLogonRight": (EdgeKind.CAN_ACCESS, 0.7),
+    "SeBatchLogonRight": (EdgeKind.CAN_ACCESS, 0.7),
+}
+
+
+def _ingest_user_rights(state: _IngestState, computer_key: str, obj: dict[str, Any]) -> None:
+    """Computer ``UserRights[]`` → direct CAN_ACCESS edges per
+    principal that holds a known lateral-movement privilege."""
+    user_rights = obj.get("UserRights")
+    if not isinstance(user_rights, list):
+        return
+    for ur in user_rights:
+        if not isinstance(ur, dict):
+            continue
+        privilege = ur.get("Privilege")
+        if not isinstance(privilege, str):
+            continue
+        mapping = _USER_RIGHTS_PRIVILEGE_TO_EDGE.get(privilege)
+        if mapping is None:
+            continue
+        edge_kind, weight = mapping
+        results = ur.get("Results") or []
+        if not isinstance(results, list):
+            continue
+        for principal in results:
+            if not isinstance(principal, dict):
+                continue
+            principal_sid = principal.get("ObjectIdentifier")
+            if not isinstance(principal_sid, str) or not principal_sid:
+                continue
+            principal_type = principal.get("ObjectType") or "User"
+            principal_type = (
+                principal_type if principal_type in _BH_TYPE_SINGULAR.values() else "User"
+            )
+            principal_key = _ensure_placeholder(
+                state, sid=principal_sid, default_type=principal_type
+            )
+            state.add_edge(
+                src_key=principal_key,
+                dst_key=computer_key,
+                kind=edge_kind,
+                weight=weight,
+                props={
+                    "bh_right": "UserRight",
+                    "via_privilege": privilege,
+                },
+            )
+
+
 def _ingest_enterprise_ca_edges(state: _IngestState, src_key: str, obj: dict[str, Any]) -> None:
     """``EnterpriseCA`` extras: ``EnabledCertTemplates[]`` and
     ``HostingComputer``.
@@ -820,6 +944,8 @@ def _merge_one_payload(state: _IngestState, data: dict[str, Any], *, type_hint: 
             _ingest_issuance_policy_link(state, src_key, obj)
         if type_singular == "Computer":
             _ingest_local_groups(state, src_key, obj)
+            _ingest_gpo_changes(state, src_key, obj)
+            _ingest_user_rights(state, src_key, obj)
         if hasattr(state.stats, counter_attr):
             setattr(state.stats, counter_attr, getattr(state.stats, counter_attr) + 1)
 

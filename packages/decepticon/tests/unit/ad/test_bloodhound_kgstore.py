@@ -817,3 +817,129 @@ class TestLocalGroupsIngest:
         admin = store.edges_of_kind("ADMIN_TO")
         # Non-numeric trailing fragment skips the RID lookup entirely.
         assert all("custom-group" not in s for s, _d, _p in admin)
+
+
+# ── GPOChanges + UserRights ingest ──────────────────────────────────
+
+
+class TestGpoChangesIngest:
+    """Computer ``GPOChanges`` → direct AdminTo / CAN_ACCESS edges
+    derived from GptTmpl.inf-pushed local-group membership."""
+
+    def _bh(self, *, bucket: str, principal_sid: str) -> dict[str, Any]:
+        return {
+            "meta": {"type": "computers"},
+            "data": [
+                {
+                    "ObjectIdentifier": "S-1-5-21-1-1-1-1001",
+                    "Properties": {"name": "ws01"},
+                    "GPOChanges": {
+                        bucket: [{"ObjectIdentifier": principal_sid, "ObjectType": "User"}]
+                    },
+                }
+            ],
+        }
+
+    @pytest.mark.parametrize(
+        "bucket,expected_kind",
+        [
+            ("LocalAdmins", "ADMIN_TO"),
+            ("RemoteDesktopUsers", "CAN_ACCESS"),
+            ("DcomUsers", "CAN_ACCESS"),
+            ("PSRemoteUsers", "CAN_ACCESS"),
+        ],
+    )
+    def test_each_bucket_emits_correct_direct_edge(self, bucket: str, expected_kind: str) -> None:
+        store = _FakeKGStore()
+        merge_bloodhound_json(
+            self._bh(bucket=bucket, principal_sid="S-1-5-21-1-1-1-2001"),
+            engagement="t",
+            store=store,
+        )
+        edges = store.edges_of_kind(expected_kind)
+        assert any(
+            "2001" in s
+            and "1001" in d
+            and p.get("bh_right") == "GPOChange"
+            and p.get("via_gpo_changes") == bucket
+            for s, d, p in edges
+        )
+
+    def test_unknown_bucket_emits_no_edge(self) -> None:
+        store = _FakeKGStore()
+        merge_bloodhound_json(
+            self._bh(bucket="UnknownBucket", principal_sid="S-1-5-21-1-1-1-2001"),
+            engagement="t",
+            store=store,
+        )
+        # No edges from the unknown bucket — the whitelist is the
+        # source of truth.
+        all_edges = store.edges()
+        assert not any(p.get("via_gpo_changes") for _s, _k, _d, p in all_edges)
+
+
+class TestUserRightsIngest:
+    """Computer ``UserRights[]`` → direct CAN_ACCESS edges for the
+    whitelisted lateral-movement privileges."""
+
+    def _bh(self, *, privilege: str, principal_sid: str) -> dict[str, Any]:
+        return {
+            "meta": {"type": "computers"},
+            "data": [
+                {
+                    "ObjectIdentifier": "S-1-5-21-1-1-1-1001",
+                    "Properties": {"name": "ws01"},
+                    "UserRights": [
+                        {
+                            "Privilege": privilege,
+                            "Results": [
+                                {
+                                    "ObjectIdentifier": principal_sid,
+                                    "ObjectType": "User",
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
+
+    @pytest.mark.parametrize(
+        "privilege",
+        [
+            "SeRemoteInteractiveLogonRight",
+            "SeInteractiveLogonRight",
+            "SeServiceLogonRight",
+            "SeBatchLogonRight",
+        ],
+    )
+    def test_whitelisted_privilege_emits_can_access_edge(self, privilege: str) -> None:
+        store = _FakeKGStore()
+        merge_bloodhound_json(
+            self._bh(privilege=privilege, principal_sid="S-1-5-21-1-1-1-2001"),
+            engagement="t",
+            store=store,
+        )
+        edges = store.edges_of_kind("CAN_ACCESS")
+        assert any(
+            "2001" in s
+            and "1001" in d
+            and p.get("bh_right") == "UserRight"
+            and p.get("via_privilege") == privilege
+            for s, d, p in edges
+        )
+
+    def test_unknown_privilege_emits_no_edge(self) -> None:
+        store = _FakeKGStore()
+        merge_bloodhound_json(
+            self._bh(
+                privilege="SeUnknownPrivilegeRight",
+                principal_sid="S-1-5-21-1-1-1-2001",
+            ),
+            engagement="t",
+            store=store,
+        )
+        # The whitelist is the source of truth; unknown privileges
+        # produce no edges.
+        all_edges = store.edges()
+        assert not any(p.get("via_privilege") for _s, _k, _d, p in all_edges)
