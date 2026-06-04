@@ -21,22 +21,31 @@ class _FakeKGStore:
     """Captures every ``execute_write`` call so tests can inspect the
     queries and parameter shape."""
 
-    def __init__(self, *, dcsync_created: int = 1, golden_created: int = 1) -> None:
+    def __init__(
+        self,
+        *,
+        dcsync_created: int = 1,
+        golden_created: int = 1,
+        esc1_created: int = 1,
+    ) -> None:
         self.calls: list[tuple[str, dict[str, Any], str]] = []
         self._dcsync_created = dcsync_created
         self._golden_created = golden_created
+        self._esc1_created = esc1_created
         self.closed = False
 
     def execute_write(
         self, query: str, params: dict[str, Any], *, engagement: str
     ) -> list[dict[str, Any]]:
         self.calls.append((query, dict(params), engagement))
-        # The two queries differ in their MATCH pattern: DCSync starts
-        # with GET_CHANGES, GoldenCert with OWNS|WRITE_OWNER|MANAGE_CA.
+        # Each algorithm is identifiable by a distinctive substring in
+        # its MATCH pattern.
         if "GET_CHANGES" in query:
             return [{"created": self._dcsync_created}]
         if "OWNS|WRITE_OWNER|MANAGE_CA" in query:
             return [{"created": self._golden_created}]
+        if "ADCS_ESC1" in query:
+            return [{"created": self._esc1_created}]
         return []
 
     def close(self) -> None:
@@ -56,13 +65,14 @@ class TestPublicSignatures:
         assert isinstance(result, PostProcessStats)
 
     def test_stats_carry_counts_from_each_query(self) -> None:
-        store = _FakeKGStore(dcsync_created=3, golden_created=2)
+        store = _FakeKGStore(dcsync_created=3, golden_created=2, esc1_created=4)
         stats = synthesise_adcs_post(
             engagement="t",
             store=store,  # type: ignore[arg-type]
         )
         assert stats.dcsync == 3
         assert stats.golden_cert == 2
+        assert stats.adcs_esc1 == 4
 
     def test_provenance_threaded_into_every_call(self) -> None:
         store = _FakeKGStore()
@@ -72,7 +82,7 @@ class TestPublicSignatures:
             source_episode_id="ep-x",
             created_by="adcs_post_test",
         )
-        assert len(store.calls) == 2
+        assert len(store.calls) == 3
         for _query, params, engagement in store.calls:
             assert engagement == "t-eng"
             assert params["engagement"] == "t-eng"
@@ -179,6 +189,74 @@ class TestGoldenCertQuery:
         q = self._golden_query(store)
         assert "_jc" in q
         assert "ON CREATE SET" in q and "ON MATCH SET" in q
+
+
+# ── ADCS ESC1 algorithm ─────────────────────────────────────────────
+
+
+class TestAdcsEsc1Query:
+    def _esc1_query(self, store: _FakeKGStore) -> str:
+        for q, _params, _engagement in store.calls:
+            if "ADCS_ESC1" in q:
+                return q
+        raise AssertionError("ADCS_ESC1 query not issued")
+
+    def test_template_conditions_required(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc1_query(store)
+        # The core ESC1 template predicates.
+        assert "ct.authenticationenabled = true" in q
+        assert "ct.enrolleesuppliessubject = true" in q
+        assert "ct.requiresmanagerapproval" in q  # checked via coalesce
+
+    def test_enroll_edge_required_via_bh_right(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc1_query(store)
+        # Enroll matches on the ``bh_right`` ACE prop rather than a
+        # dedicated edge type — the ingest writes the ACE under the
+        # generic ENABLES fallback so we match on the prop.
+        assert "bh_right = 'Enroll'" in q
+
+    def test_published_to_required(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc1_query(store)
+        # EnterpriseCA must publish the vulnerable template.
+        assert ":PUBLISHED_TO" in q
+        assert ":ADEnterpriseCA" in q
+
+    def test_query_uses_jc_marker_for_idempotent_count(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc1_query(store)
+        assert "_jc" in q
+        assert "ON CREATE SET" in q and "ON MATCH SET" in q
+
+    def test_via_template_provenance_attached(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc1_query(store)
+        # The vulnerable template's key is preserved on the ESC1 edge
+        # so an analyst can trace the path back without re-running the
+        # algorithm.
+        assert "via_template" in q
 
 
 # ── Default-store path ─────────────────────────────────────────────

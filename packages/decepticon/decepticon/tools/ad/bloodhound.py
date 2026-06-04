@@ -333,28 +333,18 @@ def _ingest_object(state: _IngestState, obj: dict[str, Any], type_name: str) -> 
     label = properties.get("name") or obj.get("Name") or object_id
     kind = _node_kind_for_bh(type_name)
 
-    # Preserve the headline BloodHound props the analysis tools read.
-    bh_props: dict[str, Any] = {
-        "domain": properties.get("domain"),
-        "domainsid": properties.get("domainsid"),
-        "distinguishedname": properties.get("distinguishedname"),
-        "enabled": properties.get("enabled"),
-        "admincount": properties.get("admincount"),
-        "haslaps": properties.get("haslaps"),
-        "hasspn": properties.get("hasspn"),
-        "dontreqpreauth": properties.get("dontreqpreauth"),
-        "trustedfordelegation": properties.get("trustedfordelegation"),
-        "unconstraineddelegation": properties.get("unconstraineddelegation"),
-        "passwordnotreqd": properties.get("passwordnotreqd"),
-        "pwdlastset": properties.get("pwdlastset"),
-        "lastlogon": properties.get("lastlogon"),
-        "sidhistory": properties.get("sidhistory"),
-        "description": properties.get("description"),
-        "samaccountname": properties.get("samaccountname"),
-        "operatingsystem": properties.get("operatingsystem"),
-        "isdc": properties.get("isdc"),
-        "name": properties.get("name"),
-    }
+    # Preserve every BloodHound ``Properties`` field verbatim so the
+    # ADCS template predicates (``authenticationenabled`` /
+    # ``enrolleesuppliessubject`` / ``requiresmanagerapproval`` /
+    # ``nosecurityextension`` / ``ekus`` / etc.) and any future
+    # BHCE-emitted fields are available to downstream consumers
+    # without per-key extraction maintenance. The legacy explicit
+    # allow-list (User / Computer-centric: ``admincount`` /
+    # ``dontreqpreauth`` / ``haslaps`` / etc.) silently dropped
+    # everything else; ESC1 / ESC4 / ESC9 traversal needs the full
+    # set, and the analysis tools that filter by name still find
+    # what they look for.
+    bh_props: dict[str, Any] = dict(properties)
     if obj.get("IsDeleted"):
         bh_props["isdeleted"] = True
     if obj.get("IsACLProtected"):

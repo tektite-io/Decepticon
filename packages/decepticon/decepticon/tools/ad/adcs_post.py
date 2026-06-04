@@ -43,6 +43,7 @@ class PostProcessStats:
 
     dcsync: int = 0
     golden_cert: int = 0
+    adcs_esc1: int = 0
 
     def to_dict(self) -> dict[str, int]:
         return self.__dict__
@@ -87,6 +88,54 @@ _GOLDEN_CERT_QUERY = (
     "SET gc.lastupdated = $now "
     "WITH gc, gc._jc AS just_created "
     "REMOVE gc._jc "
+    "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
+)
+
+
+# ADCS ESC1 — minimum-viable variant.
+#
+# BHCE's full ESC1 algorithm also requires the EnterpriseCA to chain
+# to an NTAuthStore via ``TRUSTED_FOR_NTAUTH``, but we don't emit
+# that edge yet (NTAuthStore.certthumbprints + EnterpriseCA cert chain
+# matching is a follow-up). For now we accept any EnterpriseCA that
+# publishes the vulnerable template — false-positives are unlikely
+# in a real engagement because raw collector output won't include
+# an unrelated CA in the same domain.
+#
+# Template conditions (per
+# https://bloodhound.specterops.io/resources/edges/adcs-esc1):
+#   - authenticationenabled = true
+#   - enrolleesuppliessubject = true   (the core ESC1 primitive)
+#   - requiresmanagerapproval = false  (default false when missing)
+#
+# Edge requirements:
+#   - principal -[bh_right='Enroll']-> CertTemplate (raw ACE)
+#   - EnterpriseCA -[:PUBLISHED_TO]-> CertTemplate
+#
+# Result: principal --ADCS_ESC1--> EnterpriseCA, dedup'd via DISTINCT
+# so a principal with multiple matching templates on the same CA
+# doesn't mint extra edges.
+
+_ADCS_ESC1_QUERY = (
+    "MATCH (ct:ADCertTemplate {engagement: $engagement}) "
+    "WHERE ct.authenticationenabled = true "
+    "  AND ct.enrolleesuppliessubject = true "
+    "  AND coalesce(ct.requiresmanagerapproval, false) = false "
+    "MATCH (eca:ADEnterpriseCA {engagement: $engagement})-[:PUBLISHED_TO {engagement: $engagement}]->(ct) "
+    "MATCH (p)-[en {engagement: $engagement}]->(ct) "
+    "WHERE en.bh_right = 'Enroll' "
+    "WITH DISTINCT p, eca, ct "
+    "MERGE (p)-[r:ADCS_ESC1 {engagement: $engagement}]->(eca) "
+    "ON CREATE SET r.firstseen = $now, "
+    "              r.created_by = $created_by, "
+    "              r.source_episode_id = $source_episode_id, "
+    "              r.post_process_source = 'ESC1: vulnerable template + Enroll + PublishedTo', "
+    "              r.via_template = ct.key, "
+    "              r._jc = true "
+    "ON MATCH SET r._jc = false "
+    "SET r.lastupdated = $now "
+    "WITH r, r._jc AS just_created "
+    "REMOVE r._jc "
     "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
 )
 
@@ -151,6 +200,20 @@ def synthesise_adcs_post(
         )
         if rows:
             stats.golden_cert = int(rows[0].get("created") or 0)
+
+        # ADCS ESC1
+        rows = target_store.execute_write(
+            _ADCS_ESC1_QUERY,
+            {
+                "engagement": engagement,
+                "now": now,
+                "created_by": created_by,
+                "source_episode_id": source_episode_id,
+            },
+            engagement=engagement,
+        )
+        if rows:
+            stats.adcs_esc1 = int(rows[0].get("created") or 0)
     finally:
         if owned_store:
             target_store.close()
