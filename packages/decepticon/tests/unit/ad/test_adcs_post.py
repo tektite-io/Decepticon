@@ -27,11 +27,17 @@ class _FakeKGStore:
         dcsync_created: int = 1,
         golden_created: int = 1,
         esc1_created: int = 1,
+        esc4_created: int = 1,
+        esc9a_created: int = 1,
+        esc9b_created: int = 1,
     ) -> None:
         self.calls: list[tuple[str, dict[str, Any], str]] = []
         self._dcsync_created = dcsync_created
         self._golden_created = golden_created
         self._esc1_created = esc1_created
+        self._esc4_created = esc4_created
+        self._esc9a_created = esc9a_created
+        self._esc9b_created = esc9b_created
         self.closed = False
 
     def execute_write(
@@ -39,13 +45,22 @@ class _FakeKGStore:
     ) -> list[dict[str, Any]]:
         self.calls.append((query, dict(params), engagement))
         # Each algorithm is identifiable by a distinctive substring in
-        # its MATCH pattern.
+        # its MATCH pattern. Check the more-specific ESC9 / ESC4 / ESC1
+        # markers before falling back to the broader GoldenCert one
+        # so the alternation doesn't trip the GOLDEN_CERT check on
+        # the ``OWNS_LIMITED_RIGHTS`` substring used in ESC4.
+        if "ADCS_ESC9A" in query:
+            return [{"created": self._esc9a_created}]
+        if "ADCS_ESC9B" in query:
+            return [{"created": self._esc9b_created}]
+        if "ADCS_ESC4" in query:
+            return [{"created": self._esc4_created}]
+        if "ADCS_ESC1" in query:
+            return [{"created": self._esc1_created}]
         if "GET_CHANGES" in query:
             return [{"created": self._dcsync_created}]
         if "OWNS|WRITE_OWNER|MANAGE_CA" in query:
             return [{"created": self._golden_created}]
-        if "ADCS_ESC1" in query:
-            return [{"created": self._esc1_created}]
         return []
 
     def close(self) -> None:
@@ -65,7 +80,14 @@ class TestPublicSignatures:
         assert isinstance(result, PostProcessStats)
 
     def test_stats_carry_counts_from_each_query(self) -> None:
-        store = _FakeKGStore(dcsync_created=3, golden_created=2, esc1_created=4)
+        store = _FakeKGStore(
+            dcsync_created=3,
+            golden_created=2,
+            esc1_created=4,
+            esc4_created=5,
+            esc9a_created=6,
+            esc9b_created=7,
+        )
         stats = synthesise_adcs_post(
             engagement="t",
             store=store,  # type: ignore[arg-type]
@@ -73,6 +95,9 @@ class TestPublicSignatures:
         assert stats.dcsync == 3
         assert stats.golden_cert == 2
         assert stats.adcs_esc1 == 4
+        assert stats.adcs_esc4 == 5
+        assert stats.adcs_esc9a == 6
+        assert stats.adcs_esc9b == 7
 
     def test_provenance_threaded_into_every_call(self) -> None:
         store = _FakeKGStore()
@@ -82,7 +107,7 @@ class TestPublicSignatures:
             source_episode_id="ep-x",
             created_by="adcs_post_test",
         )
-        assert len(store.calls) == 3
+        assert len(store.calls) == 6
         for _query, params, engagement in store.calls:
             assert engagement == "t-eng"
             assert params["engagement"] == "t-eng"
@@ -257,6 +282,115 @@ class TestAdcsEsc1Query:
         # so an analyst can trace the path back without re-running the
         # algorithm.
         assert "via_template" in q
+
+
+# ── ADCS ESC4 algorithm ─────────────────────────────────────────────
+
+
+class TestAdcsEsc4Query:
+    def _esc4_query(self, store: _FakeKGStore) -> str:
+        for q, _params, _engagement in store.calls:
+            if "ADCS_ESC4" in q:
+                return q
+        raise AssertionError("ADCS_ESC4 query not issued")
+
+    def test_writable_ace_alternation(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc4_query(store)
+        # All five "writable on the template" rights must be in the
+        # alternation, plus the OwnsLimitedRights / WriteOwnerLimitedRights
+        # raw forms that BHCE post-process otherwise promotes.
+        for kind in (
+            "GENERIC_ALL",
+            "GENERIC_WRITE",
+            "WRITE_DACL",
+            "WRITE_OWNER",
+            "OWNS",
+            "OWNS_LIMITED_RIGHTS",
+            "WRITE_OWNER_LIMITED_RIGHTS",
+        ):
+            assert kind in q
+
+    def test_published_to_required(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc4_query(store)
+        assert ":PUBLISHED_TO" in q
+        assert ":ADEnterpriseCA" in q
+        assert ":ADCertTemplate" in q
+
+    def test_via_template_provenance(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        q = self._esc4_query(store)
+        assert "via_template" in q
+
+
+# ── ADCS ESC9a / ESC9b algorithms ──────────────────────────────────
+
+
+class TestAdcsEsc9Queries:
+    def _esc9_queries(self, store: _FakeKGStore) -> tuple[str, str]:
+        esc9a, esc9b = None, None
+        for q, _params, _engagement in store.calls:
+            if "ADCS_ESC9A" in q:
+                esc9a = q
+            elif "ADCS_ESC9B" in q:
+                esc9b = q
+        if esc9a is None or esc9b is None:
+            raise AssertionError("ESC9a or ESC9b query missing")
+        return esc9a, esc9b
+
+    def test_both_variants_require_no_security_extension(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        esc9a, esc9b = self._esc9_queries(store)
+        assert "ct.nosecurityextension = true" in esc9a
+        assert "ct.nosecurityextension = true" in esc9b
+
+    def test_esc9a_branches_on_subjectaltrequireupn(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        esc9a, _ = self._esc9_queries(store)
+        assert "ct.subjectaltrequireupn = true" in esc9a
+        # ESC9a must NOT trigger on DNS-only templates.
+        assert "subjectaltrequiredns" not in esc9a
+
+    def test_esc9b_branches_on_subjectaltrequiredns(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        _, esc9b = self._esc9_queries(store)
+        assert "ct.subjectaltrequiredns = true" in esc9b
+        assert "subjectaltrequireupn" not in esc9b
+
+    def test_both_variants_require_enroll_via_bh_right(self) -> None:
+        store = _FakeKGStore()
+        synthesise_adcs_post(
+            engagement="t",
+            store=store,  # type: ignore[arg-type]
+        )
+        esc9a, esc9b = self._esc9_queries(store)
+        assert "bh_right = 'Enroll'" in esc9a
+        assert "bh_right = 'Enroll'" in esc9b
 
 
 # ── Default-store path ─────────────────────────────────────────────

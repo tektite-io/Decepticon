@@ -44,6 +44,9 @@ class PostProcessStats:
     dcsync: int = 0
     golden_cert: int = 0
     adcs_esc1: int = 0
+    adcs_esc4: int = 0
+    adcs_esc9a: int = 0
+    adcs_esc9b: int = 0
 
     def to_dict(self) -> dict[str, int]:
         return self.__dict__
@@ -140,6 +143,102 @@ _ADCS_ESC1_QUERY = (
 )
 
 
+# ADCS ESC4 — vulnerable ACL on a published CertTemplate.
+#
+# A principal that holds ``OWNS`` / ``WRITE_OWNER`` / ``WRITE_DACL``
+# / ``GENERIC_ALL`` / ``GENERIC_WRITE`` (or their limited-rights raw
+# counterparts) on a CertTemplate that is published by an
+# EnterpriseCA can rewrite the template's flags (enrolleesuppliessubject,
+# authenticationenabled, ...) and then enrol — effectively a write-
+# then-ESC1 primitive.
+#
+# We dedup via DISTINCT so a principal with multiple writable rights
+# on the same template doesn't mint extras. The template's key lands
+# on the edge as ``via_template`` provenance.
+
+_ADCS_ESC4_QUERY = (
+    "MATCH (p)-[r:GENERIC_ALL|GENERIC_WRITE|WRITE_DACL|WRITE_OWNER|OWNS"
+    "|OWNS_LIMITED_RIGHTS|WRITE_OWNER_LIMITED_RIGHTS {engagement: $engagement}]->"
+    "(ct:ADCertTemplate {engagement: $engagement}) "
+    "MATCH (eca:ADEnterpriseCA {engagement: $engagement})-[:PUBLISHED_TO {engagement: $engagement}]->(ct) "
+    "WITH DISTINCT p, eca, ct "
+    "MERGE (p)-[e:ADCS_ESC4 {engagement: $engagement}]->(eca) "
+    "ON CREATE SET e.firstseen = $now, "
+    "              e.created_by = $created_by, "
+    "              e.source_episode_id = $source_episode_id, "
+    "              e.post_process_source = 'ESC4: writable ACL on PublishedTo CertTemplate', "
+    "              e.via_template = ct.key, "
+    "              e._jc = true "
+    "ON MATCH SET e._jc = false "
+    "SET e.lastupdated = $now "
+    "WITH e, e._jc AS just_created "
+    "REMOVE e._jc "
+    "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
+)
+
+
+# ADCS ESC9a / ESC9b — no security extension + subjectAlt user-controlled.
+#
+# When the CertTemplate has ``nosecurityextension = true`` and
+# ``authenticationenabled = true``, the issued certificate's strong
+# mapping to the AD account relies on a Subject Alternative Name.
+# If the SAN is user-controllable (``subjectaltrequireupn = true``
+# for ESC9a; ``subjectaltrequiredns = true`` for ESC9b) the enroller
+# can impersonate any AD principal whose UPN / DNS they put on the
+# SAN.
+#
+# Both variants also need raw Enroll rights + the template to be
+# published by an EnterpriseCA.
+
+_ADCS_ESC9A_QUERY = (
+    "MATCH (ct:ADCertTemplate {engagement: $engagement}) "
+    "WHERE ct.authenticationenabled = true "
+    "  AND ct.nosecurityextension = true "
+    "  AND ct.subjectaltrequireupn = true "
+    "  AND coalesce(ct.requiresmanagerapproval, false) = false "
+    "MATCH (eca:ADEnterpriseCA {engagement: $engagement})-[:PUBLISHED_TO {engagement: $engagement}]->(ct) "
+    "MATCH (p)-[en {engagement: $engagement}]->(ct) "
+    "WHERE en.bh_right = 'Enroll' "
+    "WITH DISTINCT p, eca, ct "
+    "MERGE (p)-[r:ADCS_ESC9A {engagement: $engagement}]->(eca) "
+    "ON CREATE SET r.firstseen = $now, "
+    "              r.created_by = $created_by, "
+    "              r.source_episode_id = $source_episode_id, "
+    "              r.post_process_source = 'ESC9a: no SecExt + UPN SAN + Enroll', "
+    "              r.via_template = ct.key, "
+    "              r._jc = true "
+    "ON MATCH SET r._jc = false "
+    "SET r.lastupdated = $now "
+    "WITH r, r._jc AS just_created "
+    "REMOVE r._jc "
+    "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
+)
+
+_ADCS_ESC9B_QUERY = (
+    "MATCH (ct:ADCertTemplate {engagement: $engagement}) "
+    "WHERE ct.authenticationenabled = true "
+    "  AND ct.nosecurityextension = true "
+    "  AND ct.subjectaltrequiredns = true "
+    "  AND coalesce(ct.requiresmanagerapproval, false) = false "
+    "MATCH (eca:ADEnterpriseCA {engagement: $engagement})-[:PUBLISHED_TO {engagement: $engagement}]->(ct) "
+    "MATCH (p)-[en {engagement: $engagement}]->(ct) "
+    "WHERE en.bh_right = 'Enroll' "
+    "WITH DISTINCT p, eca, ct "
+    "MERGE (p)-[r:ADCS_ESC9B {engagement: $engagement}]->(eca) "
+    "ON CREATE SET r.firstseen = $now, "
+    "              r.created_by = $created_by, "
+    "              r.source_episode_id = $source_episode_id, "
+    "              r.post_process_source = 'ESC9b: no SecExt + DNS SAN + Enroll', "
+    "              r.via_template = ct.key, "
+    "              r._jc = true "
+    "ON MATCH SET r._jc = false "
+    "SET r.lastupdated = $now "
+    "WITH r, r._jc AS just_created "
+    "REMOVE r._jc "
+    "RETURN sum(CASE WHEN just_created THEN 1 ELSE 0 END) AS created"
+)
+
+
 def synthesise_adcs_post(
     *,
     engagement: str,
@@ -214,6 +313,48 @@ def synthesise_adcs_post(
         )
         if rows:
             stats.adcs_esc1 = int(rows[0].get("created") or 0)
+
+        # ADCS ESC4
+        rows = target_store.execute_write(
+            _ADCS_ESC4_QUERY,
+            {
+                "engagement": engagement,
+                "now": now,
+                "created_by": created_by,
+                "source_episode_id": source_episode_id,
+            },
+            engagement=engagement,
+        )
+        if rows:
+            stats.adcs_esc4 = int(rows[0].get("created") or 0)
+
+        # ADCS ESC9a
+        rows = target_store.execute_write(
+            _ADCS_ESC9A_QUERY,
+            {
+                "engagement": engagement,
+                "now": now,
+                "created_by": created_by,
+                "source_episode_id": source_episode_id,
+            },
+            engagement=engagement,
+        )
+        if rows:
+            stats.adcs_esc9a = int(rows[0].get("created") or 0)
+
+        # ADCS ESC9b
+        rows = target_store.execute_write(
+            _ADCS_ESC9B_QUERY,
+            {
+                "engagement": engagement,
+                "now": now,
+                "created_by": created_by,
+                "source_episode_id": source_episode_id,
+            },
+            engagement=engagement,
+        )
+        if rows:
+            stats.adcs_esc9b = int(rows[0].get("created") or 0)
     finally:
         if owned_store:
             target_store.close()
