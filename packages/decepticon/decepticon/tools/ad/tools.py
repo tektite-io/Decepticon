@@ -10,6 +10,7 @@ from zipfile import BadZipFile
 from langchain_core.tools import tool
 
 from decepticon.tools.ad.adcs import analyze_adcs_templates
+from decepticon.tools.ad.adcs_post import synthesise_adcs_post as _synthesise_adcs_post
 from decepticon.tools.ad.bloodhound import (
     ingest_bloodhound_zip as _ingest_bloodhound_zip_impl,
 )
@@ -162,12 +163,37 @@ def shadow_creds_audit() -> str:
     return _json({"findings": [f.to_dict() for f in findings], "count": len(findings)})
 
 
+@tool
+def adcs_post_process() -> str:
+    """Synthesise BHCE-server-equivalent ADCS attack edges into the KG.
+
+    Walks the engagement's raw BloodHound graph and merges high-signal
+    chain edges that the raw collector does NOT emit:
+
+      - ``DCSync`` per (principal, domain) pair where the principal
+        holds both ``GET_CHANGES`` and ``GET_CHANGES_ALL``.
+      - ``GoldenCert`` per (principal, EnterpriseCA) pair where the
+        principal holds ``OWNS`` / ``WRITE_OWNER`` / ``MANAGE_CA``.
+
+    ESC1/3/4/6a/6b/9a/9b/10a/10b/13 require Enroll-edge ingest that
+    isn't wired in yet — they land in a dedicated follow-up PR.
+
+    Run after ``bh_ingest_zip`` / ``bh_ingest_json`` finishes for the
+    engagement. Idempotent: re-running on the same engagement creates
+    no extra edges.
+    """
+    engagement = _resolve_engagement()
+    stats = _synthesise_adcs_post(engagement=engagement)
+    return _json({"synthesised": stats.to_dict()})
+
+
 AD_TOOLS = [
     bh_ingest_zip,
     bh_ingest_json,
     dcsync_check,
     kerberos_classify,
     adcs_audit,
+    adcs_post_process,
     delegation_audit,
     gpo_audit,
     shadow_creds_audit,
